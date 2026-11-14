@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>把概率看成面积 · 贝叶斯交互实验室</title>
+<style>
+:root{--bg:#0b1220;--panel:#142033;--panel2:#19283d;--text:#f3f6fb;--muted:#a9b8cc;--soft:#72849c;--line:#314157;--orange:#ffb64b;--orange2:#ffe0a4;--pink:#f371b3;--blue:#60d9cf;--ghost:#334457;--radius:19px}
+*{box-sizing:border-box}html{scroll-behavior:smooth;-webkit-tap-highlight-color:transparent}body{margin:0;background:radial-gradient(ellipse 80% 40% at 50% -12%,#183555 0%,transparent 75%),var(--bg);color:var(--text);font:15px/1.63 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif}
+button,input{font:inherit}button{cursor:pointer;touch-action:manipulation}button:focus-visible,input:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.shell{max-width:1240px;margin:0 auto;padding:26px 22px 72px}.eyebrow{font-size:12px;font-weight:800;letter-spacing:.19em;color:var(--blue)}header h1{font-size:clamp(27px,3.7vw,48px);line-height:1.18;margin:12px 0 10px;letter-spacing:-.025em}header p{font-size:16px;color:var(--muted);max-width:780px;margin:0}header strong{color:#fff}
+.topline{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.offline{font-size:12px;color:#9bcbbf;background:#193a3d;border:1px solid #2d6564;border-radius:50px;padding:4px 11px}
+.preset-bar{display:flex;gap:9px;flex-wrap:wrap;margin:23px 0 17px}.preset{border:1px solid var(--line);background:#152236;color:#dce7f4;border-radius:999px;padding:9px 16px;font-weight:650;transition:.2s}.preset.selected{background:#294347;border-color:#4eac9f;color:#bbffed}.preset:hover,.step:hover,.focus-button:hover{filter:brightness(1.15)}
+.translation{display:grid;grid-template-columns:1.06fr 1fr;gap:18px;background:linear-gradient(130deg,#18273d,#101c2d);border:1px solid var(--line);border-radius:var(--radius);padding:19px 23px;margin-bottom:16px}.small-label{font-size:11px;letter-spacing:.09em;color:var(--soft);font-weight:800;margin-bottom:5px}.translation p{margin:0;color:#e4ecf8;font-size:15px}.translation strong{font-weight:850}.orange{color:var(--orange)}.pink{color:var(--pink)}.cyan{color:var(--blue)}.mapping{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.mapping-card{background:#0e1b2b;border:1px solid #2b3a4d;border-radius:12px;padding:10px 12px}.mapping-card small{display:block;color:var(--soft);font-size:11px}.mapping-card strong{font-size:15px;display:block}.mapping-card span{font-size:12px;color:var(--muted)}
+.main-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(305px,.85fr);gap:17px}.card{border:1px solid var(--line);background:linear-gradient(180deg,#142237,#111c2e);border-radius:var(--radius);box-shadow:0 18px 45px #00000013;min-width:0}.chart-card{padding:20px}.side-card{padding:21px;display:flex;flex-direction:column;gap:16px}.section-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}.section-title{font-size:16px;font-weight:800}.mini-tag{font-size:11px;color:#a5b5ca;padding:5px 10px;background:#1b2c42;border-radius:100px;border:1px solid #2b425d}
+.graph-top{display:flex;justify-content:space-between;align-items:end;gap:14px;min-height:46px;margin:9px 0 9px}.graph-top .measure{text-align:left;min-width:0}.graph-top .measure:last-child{text-align:right}.measure strong{font-size:15px;display:block}.measure span{color:var(--muted);font-size:11px}
+.diagram{height:300px;width:100%;background:#223347;position:relative;border:1px solid #61738a;border-radius:10px;overflow:hidden;isolation:isolate;transition:background .65s}.diagram:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#ffffff08,transparent 40%);pointer-events:none;z-index:6}.diagram .full-space{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#e8f5ff;opacity:1;transition:opacity .45s;z-index:5}.full-space strong{font-size:28px}.full-space span{color:#a1b5d0}.prob-col{position:absolute;top:0;bottom:0;overflow:hidden;background:#33445a;opacity:0;transition:width .7s cubic-bezier(.2,.75,.2,1),left .7s cubic-bezier(.2,.75,.2,1),opacity .55s,background .6s}.prob-col.h{left:0;background:#3d5269;border-right:1px solid #ffffff8f}.prob-col.noh{right:0;background:#2c3b50}.prob-col .e-block{position:absolute;left:0;right:0;bottom:0;height:0;background:var(--orange);opacity:0;transition:height .72s cubic-bezier(.2,.75,.2,1),opacity .5s,box-shadow .4s}.prob-col.noh .e-block{background:var(--pink)}.split-guide{position:absolute;top:0;bottom:0;border-left:1px dashed #d1e5f9b6;opacity:0;z-index:4;pointer-events:none;transition:left .7s,opacity .4s}.diagram-overlay{position:absolute;z-index:7;pointer-events:none;left:11px;bottom:9px;background:#0b142ad0;color:#d9f5ee;padding:3px 9px;border:1px solid #ffffff2e;border-radius:8px;font-size:12px;opacity:0;transition:opacity .45s}.not-e-label{bottom:auto;top:9px;color:#c7d3e1}.stage-0 .full-space{opacity:1}.stage-1 .full-space,.stage-2 .full-space,.stage-3 .full-space,.stage-4 .full-space,.stage-5 .full-space{opacity:0}.stage-1 .prob-col,.stage-2 .prob-col,.stage-3 .prob-col,.stage-4 .prob-col,.stage-5 .prob-col{opacity:1}.stage-1 .split-guide,.stage-2 .split-guide,.stage-3 .split-guide,.stage-4 .split-guide,.stage-5 .split-guide{opacity:1}.stage-2 .e-block,.stage-3 .e-block,.stage-4 .e-block,.stage-5 .e-block{opacity:1}.stage-2 .diagram-overlay,.stage-3 .diagram-overlay,.stage-4 .diagram-overlay,.stage-5 .diagram-overlay{opacity:1}.stage-3 .prob-col .e-block{box-shadow:inset 0 0 0 2px #ffffff94}.stage-4 .prob-col,.stage-5 .prob-col{background:#1a2738}.stage-4 .prob-col .e-block,.stage-5 .prob-col .e-block{box-shadow:inset 0 0 0 2px #ffffffad;filter:saturate(1.2)}
+.focus-1 .prob-col.noh,.focus-2 .prob-col.noh,.focus-3 .prob-col.noh{opacity:.18}
+.focus-2 .prob-col.h,.focus-3 .prob-col.h{background:#182838}
+.focus-2 .prob-col.h .e-block,.focus-3 .prob-col.h .e-block{box-shadow:inset 0 0 0 2px #ffefd1}
+.graph-under{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px}.area-legend{min-height:82px;border:1px solid #2e4158;border-radius:11px;padding:9px 12px;background:#111e31;transition:opacity .3s}.area-legend .legend-title{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}.dot{display:inline-block;border-radius:4px;width:10px;height:10px;background:var(--orange);flex:none}.dot.pink-dot{background:var(--pink)}.area-legend b{display:block;font-size:clamp(18px,2.3vw,25px);letter-spacing:-.015em;font-variant-numeric:tabular-nums}.area-legend span:last-child{font-size:11px;color:var(--soft)}.stage-0 .area-legend,.stage-1 .area-legend,.stage-2 .area-legend{opacity:.38}
+.zoom{display:none;align-items:center;gap:13px;margin-top:14px;padding:11px 13px;background:#182a40;border-radius:11px;border:1px dashed #53718a}.zoom.visible{display:flex;animation:fadein .45s}.zoom-column{width:32px;height:82px;flex:none;border:1px solid #abc3d5;background:#47576a;position:relative;overflow:hidden}.zoom-e{position:absolute;left:0;bottom:0;width:100%;background:var(--orange);transition:height .7s;height:90%}.zoom strong{display:block;font-size:13px}.zoom span{display:block;font-size:12px;color:var(--muted)}
+.extraction{max-height:0;opacity:0;overflow:hidden;transition:max-height .6s ease,opacity .6s,padding .6s;padding:0 1px}.stage-5 .extraction{max-height:320px;opacity:1;padding:23px 1px 3px}.extract-title{font-size:13px;color:#d4e4f5;font-weight:800;margin-bottom:4px}.extract-hint{font-size:12px;color:var(--muted);margin-bottom:12px}.result-bar{height:66px;display:flex;overflow:hidden;border-radius:9px;border:1px solid #ffffff91;position:relative}.result-a,.result-b{height:100%;transition:width .75s cubic-bezier(.2,.75,.2,1);display:grid;place-content:center;overflow:hidden;white-space:nowrap}.result-a{background:var(--orange);color:#332006}.result-b{background:var(--pink);color:#3d142b}.result-bar b{font-size:16px;letter-spacing:-.02em}.result-breakdown{display:flex;justify-content:space-between;gap:12px;font-size:12px;margin-top:9px}.result-breakdown span{display:flex;align-items:center;gap:6px;color:#d3e1f0}.result-breakdown b{font-variant-numeric:tabular-nums}.warning{margin-top:13px;border-left:3px solid var(--blue);background:#102a37;color:#c7e4ea;font-size:12px;padding:9px 12px;border-radius:4px 9px 9px 4px}
+.side-ordinal{color:var(--blue);font-weight:850;font-size:12px;letter-spacing:.09em}.side-card h2{font-size:23px;letter-spacing:-.025em;margin:2px 0 0;line-height:1.32}.side-card .narrative{font-size:15px;color:#d0deed;margin:0}.big-number{border:1px solid #405b6c;border-radius:15px;background:linear-gradient(120deg,#173d41,#173048);padding:17px 18px}.big-number small{color:#a3c9cb;display:block;font-size:12px}.big-number strong{font-size:clamp(27px,3.5vw,41px);line-height:1.25;display:block;letter-spacing:-.03em;overflow-wrap:anywhere}.big-number p{font-size:12px;color:#b1c9d6;margin:5px 0 0}.formula{background:#0d1827;border-radius:12px;border:1px solid #2c3e54;padding:15px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:14px;line-height:1.9;overflow-wrap:anywhere;white-space:pre-line;color:#deebf9;min-height:88px}.tip{color:var(--muted);font-size:13px;padding-left:12px;border-left:2px solid var(--orange)}.side-spacer{flex:1}
+.step-toolbar{margin-top:18px}.step-label{font-size:13px;color:var(--muted);margin-bottom:10px}.steps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px}.step{border:1px solid #35475b;background:#19293c;color:#aebfd3;min-width:0;min-height:58px;border-radius:12px;font-size:12px;font-weight:750;padding:6px 2px;transition:.2s}.step .step-n{display:block;font-size:12px;opacity:.65}.step.selected{border-color:#57aeaa;background:#23434c;color:#e1fff9;box-shadow:inset 0 0 0 1px #57aeaa3b}.player{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap}.action{border:1px solid #3c5269;color:#e0ebf7;background:#203148;border-radius:10px;padding:10px 16px;font-weight:700;min-height:43px}.action.primary{background:#55b5ab;color:#082a2e;border-color:#55b5ab}.action:disabled{opacity:.4;cursor:not-allowed}
+.controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:17px}.control{border:1px solid var(--line);border-radius:var(--radius);background:#131f32;padding:17px 19px}.control-title{font-size:13px;color:#d3dfed;min-height:46px;display:flex;justify-content:space-between;align-items:flex-start;gap:6px;font-weight:750}.control-title .control-key{font-size:11px;color:var(--soft);display:block;font-weight:500}.control-title .control-key strong{color:#f4e2b6;font-size:14px}.numeric{display:flex;align-items:center;gap:5px;white-space:nowrap}.numeric input{width:81px;padding:5px 7px;border:1px solid #486078;border-radius:8px;background:#081423;color:white;font-size:16px;font-variant-numeric:tabular-nums;font-weight:800;text-align:right}.numeric span{color:var(--soft);font-size:12px}.control input[type=range]{width:100%;margin:19px 0 4px;appearance:none;-webkit-appearance:none;height:6px;border-radius:50px;background:linear-gradient(90deg,#4ccbbd,#e6ba61);accent-color:#5ccbbf;cursor:pointer}.control input[type=range]::-webkit-slider-thumb{appearance:none;width:20px;height:20px;background:#eefcff;border:4px solid #3aadb2;border-radius:50%;box-shadow:0 0 0 4px #3fa6a32b}.range-label{display:flex;justify-content:space-between;font-size:11px;color:var(--soft)}
+.focus-panel{background:#101b2c;border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-top:17px}.focus-panel h3{font-size:16px;margin:0 0 12px}.focus-row{display:flex;gap:8px;flex-wrap:wrap}.focus-button{background:#1b2c43;color:#c5d5e7;border:1px solid #344a62;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:700}.focus-button.active{border-color:#64bdac;color:#cefff5;background:#244345}.focus-help{font-size:13px;margin-top:12px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:15px}.stat{background:#14253a;border:1px solid #2e445c;border-radius:12px;padding:10px 13px}.stat small{display:block;color:var(--soft);font-size:11px}.stat strong{font-size:21px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.stat span{display:block;font-size:11px;color:var(--muted)}
+footer{margin-top:22px;font-size:12px;color:#8ca1b6;line-height:1.9}footer details{border:1px solid #2b3e53;border-radius:12px;padding:11px 15px;background:#121f31}footer summary{cursor:pointer;color:#c5d9e8;font-size:13px;font-weight:750}footer p{margin:8px 0 0}
+@keyframes fadein{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:1000px){.main-grid{grid-template-columns:minmax(0,1fr)}.side-card{gap:12px}.translation{grid-template-columns:1fr}.side-spacer{display:none}.controls{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:690px){.shell{padding:21px 12px 45px}.eyebrow{font-size:10px}.translation{padding:15px;gap:14px}.mapping{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.mapping-card{padding:8px 7px}.mapping-card strong{font-size:13px}.mapping-card span{font-size:10px}.chart-card{padding:14px}.diagram{height:262px}.controls{grid-template-columns:1fr;gap:10px}.control{padding:13px 15px}.control-title{min-height:0}.control input[type=range]{margin-top:13px}.step{font-size:10px;min-height:54px}.steps{gap:4px}.side-card{padding:17px}.graph-top{min-height:52px}.measure strong{font-size:13px}.measure span{font-size:10px}.graph-under{gap:7px}.area-legend{padding:7px 8px;min-height:75px}.area-legend .legend-title{font-size:11px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.result-bar{height:60px}.result-bar b{font-size:12px}.preset{padding:8px 13px;font-size:13px}.topline{gap:4px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="app" class="stage-0">
+<main class="shell">
+<header>
+  <div class="topline"><div class="eyebrow">BAYES · AREA LAB / 交互式学习</div><div class="offline">◎ 单文件 · 可离线运行</div></div>
+  <h1>把概率，<span class="cyan">看成面积。</span></h1>
+  <p>从一句文字描述出发，先决定<strong>左右是什么、上下是什么</strong>，再亲眼看见先验、似然、联合概率与后验如何相互转换。</p>
+</header>
+<div class="preset-bar" role="group" aria-label="选择示例">
+ <button class="preset selected" data-preset="medical">🩺 疾病筛查（1%先验）</button>
+ <button class="preset" data-preset="kws">🎙️ 语音唤醒（极低先验）</button>
+ <button class="preset" data-preset="mail">✉️ 邮件识别（平衡示例）</button>
+</div>
+<section class="translation" aria-label="从文字描述到图像">
+ <div><div class="small-label">① 先把文字转成两个变量</div><p id="sentence">每 100 人中大约有 1 人患病。患病者检测阳性的概率为 90%，未患病者阳性的概率为 5%。已知阳性，实际患病的概率是多少？</p></div>
+ <div class="mapping">
+  <div class="mapping-card"><small>左右＝先分组</small><strong class="cyan">H / ¬H</strong><span id="map-h">患病 / 未患病</span></div>
+  <div class="mapping-card"><small>上下＝组内属性</small><strong class="orange">E / ¬E</strong><span id="map-e">阳性 / 阴性</span></div>
+  <div class="mapping-card"><small>目标＝反向筛选</small><strong class="pink">P(H|E)</strong><span>只保留 E，再看 H 占比</span></div>
+ </div>
+</section>
+<div class="main-grid">
+ <section class="card chart-card">
+  <div class="section-header"><div class="section-title">原始样本空间 · 面积图</div><div class="mini-tag">整个外框＝100%</div></div>
+  <div class="graph-top"><div class="measure"><strong class="cyan" id="h-top">H：患病 1%</strong><span>左列宽度＝P(H)</span></div><div class="measure"><strong id="not-h-top">¬H：未患病 99%</strong><span>右列宽度＝1 − P(H)</span></div></div>
+  <div class="diagram" id="diagram" role="img" aria-label="按先验宽度与条件概率高度划分的面积图">
+   <div class="full-space"><strong>100% 的全部样本</strong><span>点击「下一步」，开始划分</span></div>
+   <div class="prob-col h" id="h-col"><div class="e-block" id="h-e" title="H 且 E：真阳性"></div></div>
+   <div class="prob-col noh" id="not-h-col"><div class="e-block" id="not-h-e" title="非 H 且 E：假阳性"></div></div>
+   <div class="split-guide" id="guide"></div>
+   <div class="diagram-overlay not-e-label">灰色：未出现证据 ¬E</div>
+   <div class="diagram-overlay">底部彩色：出现证据 E</div>
+  </div>
+  <div class="graph-under">
+   <div class="area-legend"><div class="legend-title"><i class="dot"></i> H 且 E（橙）</div><b id="a-val" class="orange">0.90%</b><span>左列宽 × 左列 E 高度</span></div>
+   <div class="area-legend"><div class="legend-title"><i class="dot pink-dot"></i> ¬H 且 E（粉）</div><b id="b-val" class="pink">4.95%</b><span>右列宽 × 右列 E 高度</span></div>
+  </div>
+  <div class="zoom" id="zoom"><div class="zoom-column"><div class="zoom-e" id="zoom-e"></div></div><div><strong>左列太窄？这里放大观察 H 列</strong><span>只放大列的宽度，不表示真实面积；橙色高度仍是 P(E|H)。</span></div></div>
+  <div class="extraction" id="extraction">
+   <div class="extract-title">② 只筛选出 E，再把 E 重新规定为 100%</div>
+   <div class="extract-hint">在这条新比例尺中，橙色所占的长度就是 P(H|E)。</div>
+   <div class="result-bar" id="result-bar"><div class="result-a" id="result-a"><b id="result-a-inner"></b></div><div class="result-b" id="result-b"><b id="result-b-inner"></b></div></div>
+   <div class="result-breakdown"><span><i class="dot"></i>H 的比例 <b id="result-a-label">15.38%</b></span><span><i class="dot pink-dot"></i>¬H 的比例 <b id="result-b-label">84.62%</b></span></div>
+   <div class="warning">注意：原图中 E 是<strong>两块不等高的矩形</strong>，并非等高的一条横带。下面的长条是把两块 E 按面积提取、再以 P(E) 归一化后的新图，不能直接当作原图的几何切片。</div>
+  </div>
+ </section>
+ <aside class="card side-card" aria-live="polite">
+  <div><div class="side-ordinal" id="stage-ordinal">第 1 / 6 步 · 阅读描述</div><h2 id="stage-title">先识别两种事件</h2></div>
+  <p class="narrative" id="stage-body">H 表示目标是否存在，E 表示观察到的证据。先区分“某一类有多少”和“在这一类里证据出现多少”。</p>
+  <div class="big-number"><small id="main-number-label">当前目标</small><strong id="main-number">P(H|E) = ?</strong><p id="main-number-note">先不要计算，先把文字转换成图。</p></div>
+  <div><div class="small-label">和面积一一对应的计算</div><div class="formula" id="formula">总体 = 100%\nH 与 ¬H 构成左右两类</div></div>
+  <div class="tip" id="stage-tip">先找“类别”和“属性”，不要急着套贝叶斯公式。</div>
+  <div class="side-spacer"></div>
+ </aside>
+</div>
+<section class="step-toolbar" aria-label="动画播放控制">
+ <div class="step-label">跟着 6 幕演示走，也可以点任意阶段跳转：</div>
+ <div class="steps" id="steps">
+  <button class="step selected" data-step="0"><span class="step-n">01</span>读文字</button>
+  <button class="step" data-step="1"><span class="step-n">02</span>切左右</button>
+  <button class="step" data-step="2"><span class="step-n">03</span>切上下</button>
+  <button class="step" data-step="3"><span class="step-n">04</span>算面积</button>
+  <button class="step" data-step="4"><span class="step-n">05</span>筛证据</button>
+  <button class="step" data-step="5"><span class="step-n">06</span>看后验</button>
+ </div>
+ <div class="player"><button id="prev" class="action">← 上一步</button><button id="next" class="action primary">下一步 →</button><button id="play" class="action">▶ 自动播放</button><button id="reset" class="action">↺ 回到起点</button></div>
+</section>
+<section class="controls" aria-label="三个概率参数">
+ <div class="control"><div class="control-title"><div>先验：目标类有多少？<span class="control-key">P(H) · 决定<strong>左列宽度</strong></span></div><label class="numeric"><input id="p-number" type="number" min="0.01" max="80" step="0.01" inputmode="decimal" aria-label="先验百分数"><span>%</span></label></div><input id="p-slider" type="range" min="0" max="1000" step="1" aria-label="先验概率滑块（对数刻度）"><div class="range-label"><span>0.01%</span><span>80% · 对数滑块</span></div></div>
+ <div class="control"><div class="control-title"><div>检出率：有目标时会触发？<span class="control-key">P(E|H) · 决定<strong>左列橙色高度</strong></span></div><label class="numeric"><input id="t-number" type="number" min="0" max="100" step="0.1" inputmode="decimal" aria-label="检出率百分数"><span>%</span></label></div><input id="t-slider" type="range" min="0" max="1000" step="1" aria-label="检出率滑块"><div class="range-label"><span>0%</span><span>100%</span></div></div>
+ <div class="control"><div class="control-title"><div>误报率：无目标时也会触发？<span class="control-key">P(E|¬H) · 决定<strong>右列粉色高度</strong></span></div><label class="numeric"><input id="f-number" type="number" min="0" max="100" step="0.1" inputmode="decimal" aria-label="误报率百分数"><span>%</span></label></div><input id="f-slider" type="range" min="0" max="1000" step="1" aria-label="误报率滑块"><div class="range-label"><span>0%</span><span>100%</span></div></div>
+</section>
+<section class="focus-panel">
+ <h3>直接问一个概率问题：分母是谁，就高亮谁</h3>
+ <div class="focus-row"><button class="focus-button" data-focus="1">P(H) · 整个左列</button><button class="focus-button" data-focus="2">P(E|H) · 左列内部</button><button class="focus-button" data-focus="3">P(H∩E) · 橙色面积</button><button class="focus-button" data-focus="5">P(H|E) · 所有 E 中的 H</button></div>
+ <div class="focus-help" id="focus-help">试着点击 P(E|H) 和 P(H|E)：只是竖线两边交换，分母却从「H」变成「E」，关注的总体就完全不同。</div>
+ <div class="stats"><div class="stat"><small>先验 P(H)</small><strong id="stat-p">1%</strong><span>观察前</span></div><div class="stat"><small>似然 P(E|H)</small><strong id="stat-t">90%</strong><span>给定 H 看 E</span></div><div class="stat"><small>总证据 P(E)</small><strong id="stat-e">5.85%</strong><span>所有 E 的面积</span></div><div class="stat"><small>后验 P(H|E)</small><strong id="stat-post">15.38%</strong><span>给定 E 看 H</span></div></div>
+</section>
+<footer>
+ <details><summary>阅读图时容易混淆的 3 个问题（点开）</summary>
+  <p><strong>① 左右一定是“原因”吗？</strong> 不是。左右只是先按某个变量分类。学习贝叶斯时，把假设 H 放左右最容易看到先验宽度；如果研究 P(E|H)，也可以调整轴的选法。</p>
+  <p><strong>② 为什么两块彩色区域高度不同？</strong> 因为它们分别使用 P(E|H) 与 P(E|¬H) 作高度，条件不同。联合概率用面积读，不能拿两个高度直接比较。</p>
+  <p><strong>③ 最后一条长条是不是原图裁剪出的？</strong> 不是。原图彩色面积之和是 P(E)，提取后以它为新的全集（100%），所以橙色长度变成 P(H∩E)/P(E)。</p>
+ </details>
+ <p>所有数据都在本机计算，无外部依赖，保存 HTML 后可离线打开。数值为理想化的单次检测概率；语音唤醒的实际误唤醒次数/小时不能直接用这里的逐样本误报率替代。</p>
+</footer>
+</main>
+</div>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const scenarios={
+ medical:{p:.01,t:.9,f:.05,h:'患病',nh:'未患病',e:'检测阳性',ne:'检测阴性',name:'疾病筛查',unit:'人',pop:10000},
+ kws:{p:.001,t:.95,f:.01,h:'真实唤醒',nh:'没有唤醒',e:'模型触发',ne:'模型未触发',name:'语音唤醒',unit:'段音频',pop:100000},
+ mail:{p:.2,t:.85,f:.1,h:'垃圾邮件',nh:'正常邮件',e:'命中关键词',ne:'没有命中',name:'邮件识别',unit:'封邮件',pop:1000}
+};
+let current=scenarios.medical, p=current.p,t=current.t,f=current.f,step=0,playing=null,focusStep=null;
+const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
+const pct=(v,compact=false)=>{if(!Number.isFinite(v))return '未定义';let d=v<.01?2:v<.1?2:1;let s=(100*v).toFixed(d).replace(/\.?0+$/,'');return s+'%'};
+const ratio=(v)=>Number.isFinite(v)?(v*100).toFixed(2).replace(/\.?0+$/,'')+'%':'未定义';
+const nfmt=(v)=>Number.isInteger(v)?v.toLocaleString('zh-CN'):v.toLocaleString('zh-CN',{maximumFractionDigits:2});
+const pToSlider=x=>1000*Math.log(x/.0001)/Math.log(.8/.0001);
+const sliderToP=x=>.0001*Math.pow(.8/.0001,x/1000);
+function updateControls(){
+ $('p-slider').value=String(Math.round(pToSlider(p)));$('t-slider').value=String(Math.round(t*1000));$('f-slider').value=String(Math.round(f*1000));
+ $('p-number').value=(p*100).toFixed(p<.01?2:1);$('t-number').value=(t*100).toFixed(1);$('f-number').value=(f*100).toFixed(1);
+}
+function setScenario(key){stop();current=scenarios[key];p=current.p;t=current.t;f=current.f;document.querySelectorAll('.preset').forEach(b=>b.classList.toggle('selected',b.dataset.preset===key));updateControls();update();}
+const story=[
+ {title:'先识别两种事件',n:'阅读描述',tip:'从句子里找出“类别 H”和“证据 E”；“已知 E，求 H”才是反向推断。'},
+ {title:'先按 H / ¬H 切左右',n:'建立先验',tip:'横向宽度不是似然，而是 P(H) 与 P(¬H)。极低先验会让左列很窄。'},
+ {title:'再按 E / ¬E 切上下',n:'建立条件概率',tip:'注意两列 E 的高度各自独立！没有理由要求它们对齐或等高。'},
+ {title:'宽度 × 高度＝联合面积',n:'读取联合概率',tip:'千万不要只比较橙色和粉色的高度，要比较它们的面积。'},
+ {title:'只筛选出出现证据 E 的样本',n:'用 E 作为新总体',tip:'P(E) 是两块彩色面积的和；灰色全部排除在本次条件之外。'},
+ {title:'把 E 重新归一化为 100%',n:'得到贝叶斯后验',tip:'分母变了：原来整个样本空间是 100%，现在仅 E 是 100%。'}
+];
+function update(){
+ const a=p*t,b=(1-p)*f,e=a+b,post=e>0?a/e:NaN,np=1-p;
+ const pop=current.pop;
+ $('sentence').textContent=`在 ${nfmt(pop)} ${current.unit}中，预计 ${nfmt(pop*p)} ${current.unit}属于「${current.h}」。属于「${current.h}」时，「${current.e}」的概率为 ${pct(t)}；属于「${current.nh}」时，「${current.e}」的概率为 ${pct(f)}。已知「${current.e}」，真实属于「${current.h}」的概率是多少？`;
+ $('map-h').textContent=`${current.h} / ${current.nh}`;$('map-e').textContent=`${current.e} / ${current.ne}`;
+ $('h-top').textContent=`H：${current.h} ${pct(p)}`;$('not-h-top').textContent=`¬H：${current.nh} ${pct(np)}`;
+ $('h-col').style.width=(100*p)+'%';$('not-h-col').style.width=(100*np)+'%';$('guide').style.left=(100*p)+'%';
+ $('h-e').style.height=(100*t)+'%';$('not-h-e').style.height=(100*f)+'%';$('zoom-e').style.height=(100*t)+'%';
+ $('zoom').classList.toggle('visible',step>=2&&p<.06);
+ $('a-val').textContent=pct(a);$('b-val').textContent=pct(b);
+ $('result-a').style.width=(Number.isFinite(post)?post*100:0)+'%';$('result-b').style.width=(Number.isFinite(post)?(1-post)*100:0)+'%';
+ $('result-a-inner').textContent=(post>.17)?pct(post):'';$('result-b-inner').textContent=(post<.82)?pct(1-post):'';
+ $('result-a-label').textContent=ratio(post);$('result-b-label').textContent=ratio(1-post);
+ $('stat-p').textContent=pct(p);$('stat-t').textContent=pct(t);$('stat-e').textContent=pct(e);$('stat-post').textContent=ratio(post);
+ $('result-bar').setAttribute('aria-label',`出现证据后属于目标类的概率 ${ratio(post)}`);
+ $('app').className='stage-'+step+(focusStep!==null?' focus-'+focusStep:'');
+ document.querySelectorAll('.step').forEach(b=>{const s=+b.dataset.step;b.classList.toggle('selected',s===step);b.setAttribute('aria-current',s===step?'step':'false')});
+ document.querySelectorAll('.focus-button').forEach(b=>b.classList.toggle('active',+b.dataset.focus===focusStep));
+ $('prev').disabled=step===0;$('next').disabled=step===5;
+ $('stage-ordinal').textContent=`第 ${step+1} / 6 步 · ${story[step].n}`;$('stage-title').textContent=story[step].title;$('stage-tip').textContent=story[step].tip;
+ let desc='',formula='',numlabel='',num='',note='';
+ switch(step){
+ case 0:
+  desc=`先不算。用 H 表示「${current.h}」，用 E 表示「${current.e}」。条件概率的竖线 | 读作“在……的条件下”。`;
+  formula=`H：${current.h}\n¬H：${current.nh}\nE：${current.e}\n问题：P(H | E) = ?`;
+  numlabel='最终要计算';num='P(H | E)';note='先找两个变量与条件方向。';break;
+ case 1:
+  desc=`全体先分成 ${current.h} 和 ${current.nh}。左列宽度是 ${pct(p)}，右列宽度是 ${pct(np)}；两个宽度合起来是 100%。`;
+  formula=`P(H) = ${pct(p)}\nP(¬H) = 1 − P(H) = ${pct(np)}`;
+  numlabel='左列宽度（先验）';num=pct(p);note=`${current.h}在总体中的基础比例。`;break;
+ case 2:
+  desc=`在左列中，${pct(t)} 的样本呈现证据 E；在右列中，${pct(f)} 的样本也会呈现 E。彩色块的高度是“各自列内的比例”。`;
+  formula=`P(E | H) = ${pct(t)}  ← 左列橙色高度\nP(E | ¬H) = ${pct(f)}  ← 右列粉色高度`;
+  numlabel='左列中的证据比例（似然）';num=pct(t);note='这是 P(E|H)，还不是 P(H|E)！';break;
+ case 3:
+  desc=`橙色面积＝${pct(p)} × ${pct(t)}＝${pct(a)}。粉色面积＝${pct(np)} × ${pct(f)}＝${pct(b)}。这两块就是所有呈现 E 的样本。`;
+  formula=`橙：P(H∩E) = P(H) × P(E|H)\n    = ${pct(p)} × ${pct(t)} = ${pct(a)}\n粉：P(¬H∩E) = ${pct(np)} × ${pct(f)}\n    = ${pct(b)}`;
+  numlabel='H 且 E 的面积';num=pct(a);note=`每 ${nfmt(pop)} ${current.unit}预计 ${nfmt(pop*a)} ${current.unit}在橙色区域。`;break;
+ case 4:
+  desc=`现在只关心“出现了 E”的样本。它们由橙色和粉色共同构成，灰色不参与分母。注意两块区域不一定等高。`;
+  formula=`P(E) = P(H∩E) + P(¬H∩E)\n     = ${pct(a)} + ${pct(b)}\n     = ${pct(e)}`;
+  numlabel='作为新分母的证据总面积';num=pct(e);note=`每 ${nfmt(pop)} ${current.unit}预计 ${nfmt(pop*e)} ${current.unit}出现 E。`;break;
+ case 5:
+  desc=`从整张图提取橙色与粉色，并把它们面积之和当作新的 100%。橙色占新总体的比例，才是已知 E 后 H 的概率。`;
+  formula=e>0?`P(H|E) = P(H∩E) / P(E)\n       = ${pct(a)} / (${pct(a)} + ${pct(b)})\n       = ${ratio(post)}`:`P(E)=0，证据 E 不会出现\n所以 P(H|E) 在此模型中未定义`;
+  numlabel='贝叶斯后验 P(H|E)';num=ratio(post);note=`检出率 P(E|H)=${pct(t)}，和后验 P(H|E)=${ratio(post)} 不一样。`;break;
+ }
+ $('stage-body').textContent=desc;$('formula').textContent=formula;$('main-number-label').textContent=numlabel;$('main-number').textContent=num;$('main-number-note').textContent=note;
+ $('focus-help').textContent=focusStep===2?`此时分母是整个 H 列，橙色高度 / H 列高度 = ${pct(t)}。`:
+ focusStep===5?`此时分母变成所有 E 的面积，橙色面积 / (橙色面积 + 粉色面积) = ${ratio(post)}。`:
+ focusStep===3?`此时只看橙色面积＝先验宽度 ${pct(p)} × 条件高度 ${pct(t)}＝${pct(a)}。`:
+ focusStep===1?`此时分母是整个样本空间，左列的宽度就是 P(H)=${pct(p)}。`:
+ `试着点击 P(E|H) 和 P(H|E)：分母从「H」变成「E」，关注的总体也完全不同。`;
+}
+function stop(){if(playing!==null){clearInterval(playing);playing=null}$('play').textContent='▶ 自动播放'}
+function setStep(s,focus=null){step=clamp(s,0,5);focusStep=focus;update()}
+function goStep(s,focus=null){stop();setStep(s,focus)}
+function play(){if(playing!==null){stop();return}if(step===5)setStep(0);$('play').textContent='Ⅱ 暂停动画';playing=setInterval(()=>{if(step<5)setStep(step+1);else stop()},2750)}
+$('prev').addEventListener('click',()=>goStep(step-1));$('next').addEventListener('click',()=>goStep(step+1));$('play').addEventListener('click',play);$('reset').addEventListener('click',()=>goStep(0));
+document.querySelectorAll('.step').forEach(b=>b.addEventListener('click',()=>goStep(+b.dataset.step)));
+document.querySelectorAll('.focus-button').forEach(b=>b.addEventListener('click',()=>goStep(+b.dataset.focus,+b.dataset.focus)));
+document.querySelectorAll('.preset').forEach(b=>b.addEventListener('click',()=>setScenario(b.dataset.preset)));
+$('p-slider').addEventListener('input',e=>{stop();p=sliderToP(+e.target.value);updateControls();update()});
+$('t-slider').addEventListener('input',e=>{stop();t=+e.target.value/1000;updateControls();update()});
+$('f-slider').addEventListener('input',e=>{stop();f=+e.target.value/1000;updateControls();update()});
+[['p-number','p'],['t-number','t'],['f-number','f']].forEach(([id,type])=>{const inp=$(id);const apply=()=>{let v=Number(inp.value);if(inp.value===''||!Number.isFinite(v))return;stop();if(type==='p')p=clamp(v/100,.0001,.8);if(type==='t')t=clamp(v/100,0,1);if(type==='f')f=clamp(v/100,0,1);updateControls();update()};inp.addEventListener('change',apply);inp.addEventListener('keydown',e=>{if(e.key==='Enter'){inp.blur();apply()}})});
+window.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|BUTTON/.test(document.activeElement.tagName))return;if(e.key==='ArrowRight')goStep(step+1);if(e.key==='ArrowLeft')goStep(step-1)});
+updateControls();update();
+})();
+</script>
+</body>
+</html>
