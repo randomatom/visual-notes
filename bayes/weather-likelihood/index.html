@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="拖动天气隔板，用面积理解贝叶斯似然和后验。">
+<title>天气隔板 · 贝叶斯可视化</title>
+<style>
+  :root { color-scheme: light; --ink:#202a2e; --muted:#53656a; --line:#dbe4df; --red:#b62937; --teal:#245b51; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#f4f7f4; color:var(--ink); font:16px/1.55 "DM Sans",system-ui,sans-serif; }
+  main { max-width:970px; margin:auto; padding:clamp(18px,5vw,56px); }
+  a { color:var(--teal); }
+  h1 { margin:12px 0 2px; font-size:clamp(25px,5vw,43px); line-height:1.22; }
+  .lede { color:var(--muted); margin:8px 0 20px; }
+  .card { background:white; border:1px solid var(--line); border-radius:20px; padding:clamp(10px,3vw,24px); }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  button { color:var(--teal); background:#fff; border:1px solid #a8beb5; border-radius:9px; padding:8px 12px; font:inherit; cursor:pointer; }
+  button[aria-pressed="true"] { background:var(--teal); color:#fff; border-color:var(--teal); }
+  button:focus-visible, input:focus-visible { outline:3px solid #3c8175; outline-offset:3px; }
+  svg { display:block; width:100%; max-width:730px; margin:auto; user-select:none; }
+  svg text { fill:var(--ink); font-size:21px; }
+  .counts { font-size:25px; font-weight:650; pointer-events:none; }
+  #n0 { fill:#fff; }
+  .boundary { stroke:#657574; stroke-width:1.4; vector-effect:non-scaling-stroke; }
+  .excluded { fill:none; stroke:#b7c2bd; stroke-dasharray:5 5; }
+  [data-drag] { stroke:transparent; stroke-width:19; vector-effect:non-scaling-stroke; touch-action:none; }
+  [data-drag="p"] { cursor:ew-resize; }
+  [data-drag="t"], [data-drag="f"] { cursor:ns-resize; }
+  [hidden] { display:none!important; }
+  #explanation { margin:10px 0 0; min-height:3.1em; }
+  .controls, .results { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:18px; }
+  .control, .result { background:#f4f7f4; padding:10px 12px; border-radius:11px; min-width:0; }
+  label, .result span { display:block; color:var(--muted); font-size:14px; }
+  output, .result strong { font-variant-numeric:tabular-nums; font-size:20px; }
+  .result:last-child strong { color:var(--red); }
+  input[type=range] { display:block; width:100%; margin:9px 0 2px; accent-color:var(--teal); }
+  .foot { color:var(--muted); font-size:14px; margin:12px 0 0; }
+  @media(max-width:535px) {
+    .controls { grid-template-columns:1fr; gap:7px; }
+    .results { gap:5px; }
+    .result { padding:8px; }
+    .result span { font-size:12px; }
+    .result strong { font-size:17px; }
+  }
+</style>
+</head>
+<body>
+<main>
+<a href="../../">← 可视化笔记</a>
+<h1>今天阴天，明天下雨吗？</h1>
+<p class="lede">每条记录是同一地点的一对相邻日期。上方两列按明天是否下雨分组，左侧按今天是否阴天标记。</p>
+<section class="card" aria-label="天气面积隔板">
+  <div class="toolbar" role="group" aria-label="读图步骤">
+    <button type="button" data-step="0" aria-pressed="true">看全体</button>
+    <button type="button" data-step="1" aria-pressed="false">比较两列似然</button>
+    <button type="button" data-step="2" aria-pressed="false">已知今天阴天</button>
+    <button type="button" id="play">播放三步</button>
+    <button type="button" id="reset">重置</button>
+  </div>
+  <svg viewBox="0 0 660 350" id="plot" role="group" aria-label="矩形面积图，上方列标题是明天天气，左侧行标题是今天天气">
+    <text x="365" y="23" text-anchor="middle">明天天气</text>
+    <text id="rain" y="54" text-anchor="middle">下雨</text>
+    <text id="no-rain" y="54" text-anchor="middle">不下雨</text>
+    <text x="12" y="115">今天</text>
+    <text x="12" y="141">阴天 E</text>
+    <text id="non-cloud" x="12" y="278">非阴天</text>
+    <path id="red" fill="#b62937"/>
+    <path id="right-top" fill="#fff"/>
+    <path id="all-border" class="boundary" fill="none"/>
+    <path id="top-border" class="boundary" fill="none" hidden/>
+    <path id="lower-border" class="boundary excluded" hidden/>
+    <text id="n0" class="counts" text-anchor="middle" dominant-baseline="central"></text>
+    <text id="n1" class="counts" text-anchor="middle" dominant-baseline="central"></text>
+    <text id="n2" class="counts" text-anchor="middle" dominant-baseline="central"></text>
+    <text id="n3" class="counts" text-anchor="middle" dominant-baseline="central"></text>
+    <path data-drag="p" fill="none"/>
+    <path data-drag="t" fill="none"/>
+    <path data-drag="f" fill="none"/>
+  </svg>
+  <p id="explanation" aria-live="polite"></p>
+  <div class="results">
+    <div class="result"><span>先验降雨概率</span><strong id="prior"></strong></div>
+    <div class="result"><span>阴天的似然比</span><strong id="lr"></strong></div>
+    <div class="result"><span>阴天后降雨概率</span><strong id="posterior"></strong></div>
+  </div>
+  <div class="controls">
+    <div class="control"><label for="p">下雨列宽 · P(H)</label><output id="p-value" for="p"></output><input type="range" id="p" min="12" max="88" step="0.1"></div>
+    <div class="control"><label for="t">下雨列内阴天比例 · P(E｜H)</label><output id="t-value" for="t"></output><input type="range" id="t" min="0" max="100" step="0.1"></div>
+    <div class="control"><label for="f">不下雨列内阴天比例 · P(E｜非 H)</label><output id="f-value" for="f"></output><input type="range" id="f" min="0" max="100" step="0.1"></div>
+  </div>
+  <p class="foot">默认使用 100 条教学记录。调整参数后，格中数字显示每 100 条的期望数。可直接拖动边界，也可用滑块和方向键。</p>
+</section>
+</main>
+<script>
+"use strict";
+const byId = (id) => document.getElementById(id);
+const plot = byId("plot");
+const initial = { p: 0.26, t: 12 / 26, f: 18 / 74 };
+const values = { ...initial };
+const steps = [...document.querySelectorAll("[data-step]")];
+const handles = [...document.querySelectorAll("[data-drag]")];
+const frame = { x: 100, y: 68, w: 530, h: 252 };
+let step = 0;
+let timer = null;
+let drag = null;
+
+const fmt = (value, digits = 1) => Number(value.toFixed(digits)).toString();
+const percent = (value) => fmt(value * 100) + "%";
+
+function path(id, data) {
+  byId(id).setAttribute("d", data);
+}
+function textAt(id, x, y, value) {
+  const element = byId(id);
+  element.setAttribute("x", x);
+  element.setAttribute("y", y);
+  element.textContent = value;
+}
+function show(id, visible) {
+  byId(id).toggleAttribute("hidden", !visible);
+}
+function render() {
+  const { p, t, f } = values;
+  const { x, y, w, h } = frame;
+  const right = x + w;
+  const bottom = y + h;
+  const split = x + w * p;
+  const leftCut = y + h * t;
+  const rightCut = y + h * f;
+  const sharedCut = Math.max(leftCut, rightCut);
+  const leftMid = (x + split) / 2;
+  const rightMid = (split + right) / 2;
+  const focus = step === 2;
+  const a = p * t;
+  const b = (1 - p) * f;
+  const e = a + b;
+
+  path("red", `M${x} ${y}H${split}V${leftCut}H${x}Z`);
+  path("right-top", `M${split} ${y}H${right}V${rightCut}H${split}Z`);
+  path("all-border", `M${x} ${y}H${right}V${bottom}H${x}Z M${split} ${y}V${bottom} M${x} ${leftCut}H${split} M${split} ${rightCut}H${right}`);
+  path("top-border", `M${x} ${leftCut}V${y}H${right}V${rightCut}H${split} M${x} ${leftCut}H${split} M${split} ${y}V${sharedCut}`);
+  path("lower-border", `M${x} ${leftCut}V${bottom}H${right}V${rightCut} M${split} ${sharedCut}V${bottom}`);
+  show("all-border", !focus);
+  show("top-border", focus);
+  show("lower-border", focus);
+
+  textAt("rain", leftMid, 54, "下雨");
+  textAt("no-rain", rightMid, 54, "不下雨");
+  textAt("n0", leftMid, (y + leftCut) / 2, step === 1 ? percent(t) : fmt(a * 100));
+  textAt("n1", rightMid, (y + rightCut) / 2, step === 1 ? percent(f) : fmt(b * 100));
+  textAt("n2", leftMid, (leftCut + bottom) / 2, fmt((p - a) * 100));
+  textAt("n3", rightMid, (rightCut + bottom) / 2, fmt((1 - p - b) * 100));
+  [t, f, 1 - t, 1 - f].forEach((height, index) => show("n" + index, height >= 0.14 && (step !== 1 || index < 2)));
+  for (const id of ["n2", "n3", "non-cloud"]) byId(id).style.fill = focus ? "#a0ada7" : "";
+  handles[0].setAttribute("d", `M${split} ${y}V${bottom}`);
+  handles[1].setAttribute("d", `M${x} ${leftCut}H${split}`);
+  handles[2].setAttribute("d", `M${split} ${rightCut}H${right}`);
+
+  const lr = f > 0 ? fmt(t / f, 2) : (t > 0 ? "∞" : "未定义");
+  const posterior = e > 0 ? percent(a / e) : "未定义";
+  byId("prior").textContent = percent(p);
+  byId("lr").textContent = lr;
+  byId("posterior").textContent = posterior;
+  for (const key of ["p", "t", "f"]) {
+    byId(key).value = values[key] * 100;
+    byId(key + "-value").textContent = percent(values[key]);
+  }
+  const messages = [
+    "先看整张图。左列宽度是降雨先验，左上红块表示今天阴天且明天下雨。",
+    `固定“今天阴天”，先看左列上方占 ${percent(t)}，再看右列上方占 ${percent(f)}。两者的比值是 ${lr}。`,
+    e > 0 ? `只看两块上方区域。红块 ${fmt(a * 100)} ÷ 阴天总数 ${fmt(e * 100)}，得到后验 ${posterior}。`
+      : "两列都没有阴天记录，因此无法计算已知今天阴天时的降雨概率。"
+  ];
+  byId("explanation").textContent = messages[step];
+  steps.forEach((button) => button.setAttribute("aria-pressed", Number(button.dataset.step) === step));
+}
+
+function stop() {
+  clearInterval(timer);
+  timer = null;
+  byId("play").textContent = "播放三步";
+}
+function setStep(value) {
+  step = value;
+  render();
+}
+steps.forEach((button) => button.addEventListener("click", () => {
+  stop();
+  setStep(Number(button.dataset.step));
+}));
+byId("play").addEventListener("click", () => {
+  if (timer !== null) { stop(); return; }
+  setStep(0);
+  byId("play").textContent = "暂停";
+  timer = setInterval(() => {
+    setStep(step + 1);
+    if (step === 2) stop();
+  }, 1750);
+});
+byId("reset").addEventListener("click", () => {
+  stop();
+  Object.assign(values, initial);
+  setStep(0);
+});
+for (const key of Object.keys(values)) {
+  byId(key).addEventListener("input", (event) => {
+    stop();
+    values[key] = Number(event.target.value) / 100;
+    render();
+  });
+}
+for (const handle of handles) {
+  handle.addEventListener("pointerdown", (event) => {
+    if (drag) return;
+    stop();
+    drag = { key: handle.dataset.drag, pointer: event.pointerId };
+    handle.setPointerCapture(event.pointerId);
+  });
+  handle.addEventListener("pointermove", (event) => {
+    if (drag?.pointer !== event.pointerId) return;
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(plot.getScreenCTM().inverse());
+    const horizontal = drag.key === "p";
+    const value = horizontal ? (point.x - frame.x) / frame.w : (point.y - frame.y) / frame.h;
+    values[drag.key] = Math.max(horizontal ? 0.12 : 0, Math.min(horizontal ? 0.88 : 1, value));
+    render();
+  });
+  handle.addEventListener("lostpointercapture", (event) => {
+    if (drag?.pointer === event.pointerId) drag = null;
+  });
+}
+render();
+</script>
+</body>
+</html>
