@@ -23,11 +23,43 @@
   svg { display:block; width:100%; max-width:730px; margin:auto; user-select:none; }
   svg text { fill:var(--ink); font-size:21px; }
   .counts { font-size:25px; font-weight:650; pointer-events:none; }
-  #n0 { fill:#fff; }
+  .counts.on-red { fill:#fff; }
+  .counts.muted { fill:#6e807a; }
+  svg .excluded-count { fill:#87968f; }
   .boundary { stroke:#657574; stroke-width:1.4; vector-effect:non-scaling-stroke; }
   .excluded { fill:none; stroke:#b7c2bd; stroke-dasharray:5 5; }
   .reference { fill:none; stroke:#47776c; stroke-width:1.6; vector-effect:non-scaling-stroke; pointer-events:none; }
-  .switching .reference { transition:height .32s ease, opacity .2s ease; }
+  .switching .reference { transition:y .32s ease, height .32s ease, opacity .2s ease; }
+  #plot[data-reading="probability"] .reference { stroke-width:2.3; }
+  #plot[data-reading="odds"] .counts.selected-count {
+    animation:emphasize-count .48s ease-out both; transform-box:fill-box; transform-origin:center;
+  }
+  #plot[data-reading="odds"] .counts.right-count { animation-delay:.18s; }
+  @keyframes emphasize-count { 50% { transform:scale(1.18); } }
+  .evidence-picker { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+  .evidence-picker span { color:var(--muted); font-size:14px; margin-right:4px; }
+  .evidence-picker button, .reading-button { padding:4px 9px; font-size:14px; }
+  .strength { max-width:360px; margin:14px auto 4px; padding:10px 12px; background:#f4f7f4; border-radius:10px; }
+  .strength p { margin:0; }
+  #strength-ratio { color:var(--muted); font-size:13px; }
+  .scale { position:relative; height:22px; margin:6px 10px 0; }
+  .scale::before { content:""; position:absolute; inset:10px 0 auto; border-top:2px solid #9caeaa; }
+  .scale::after { content:""; position:absolute; top:6px; left:50%; height:10px; border-left:1px solid #637773; }
+  .scale i { position:absolute; z-index:1; top:5px; width:12px; height:12px; border-radius:50%; transform:translateX(-50%); background:var(--teal); transition:left .22s ease; }
+  .scale-labels { display:grid; grid-template-columns:1fr auto 1fr; gap:4px; color:var(--muted); font-size:12px; }
+  .scale-labels span:first-child { text-align:left; }
+  .scale-labels span:last-child { text-align:right; }
+  .scale-labels b { display:block; font-weight:500; }
+  .odds-flow { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; max-width:430px; margin:0 auto 10px; padding:8px; background:#f4f7f4; border-radius:10px; }
+  .odds-flow b { display:block; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .odds-arrow { display:grid; gap:0; justify-items:center; color:var(--teal); font-size:13px; white-space:nowrap; }
+  .odds-arrow span[aria-hidden] { font-size:23px; line-height:1; }
+  #evidence-calculation:not([hidden]) .odds-arrow { animation:show-factor .32s ease-out both; }
+  @keyframes show-factor { from { opacity:0; transform:translateX(-5px); } }
+  .probability-line { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:6px 10px; }
+  #odds-details { margin-top:10px; font-size:14px; color:var(--muted); }
+  #odds-details summary { cursor:pointer; }
+  #odds-details p { margin:3px 0; }
   .guide { fill:none; stroke:#90a99f; stroke-width:1; vector-effect:non-scaling-stroke; }
   .calculation { width:min(100%,730px); margin:auto; text-align:center; }
   .by-column { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin-left:15.15%; margin-right:4.55%; }
@@ -36,7 +68,9 @@
   .equation strong { color:var(--teal); white-space:nowrap; }
   #evidence-calculation strong { color:var(--red); }
   @media(prefers-reduced-motion:reduce) {
-    .switching .reference { transition:none; }
+    .switching .reference, .scale i { transition:none; }
+    #plot[data-reading="odds"] .counts.selected-count { animation:none; }
+    #evidence-calculation:not([hidden]) .odds-arrow { animation:none; }
   }
   [data-drag] { stroke:transparent; stroke-width:19; vector-effect:non-scaling-stroke; touch-action:none; }
   [data-drag="p"] { cursor:ew-resize; }
@@ -68,22 +102,26 @@
   <div class="toolbar" role="group" aria-label="读图步骤">
     <button type="button" data-step="0" aria-pressed="true">看全体</button>
     <button type="button" data-step="1" aria-pressed="false">比较两列似然</button>
-    <button type="button" data-step="2" aria-pressed="false">已知今天阴天</button>
+    <button type="button" data-step="2" aria-pressed="false">已知今天的天气</button>
     <button type="button" id="play">播放三步</button>
     <button type="button" id="reset">重置</button>
+  </div>
+  <div class="evidence-picker" id="evidence-picker" role="group" aria-label="今天看到的天气" hidden>
+    <span>今天看到</span>
+    <button type="button" data-evidence="cloudy" aria-pressed="true">阴天</button>
+    <button type="button" data-evidence="clear" aria-pressed="false">非阴天</button>
   </div>
   <svg viewBox="0 0 660 350" id="plot" role="group" aria-label="矩形面积图，上方列标题是明天天气，左侧行标题是今天天气">
     <text x="365" y="23" text-anchor="middle">明天天气</text>
     <text id="rain" y="54" text-anchor="middle">下雨</text>
     <text id="no-rain" y="54" text-anchor="middle">不下雨</text>
     <text x="12" y="115">今天</text>
-    <text x="12" y="141">阴天 E</text>
+    <text id="cloud-label" x="12" y="141">阴天</text>
     <text id="non-cloud" x="12" y="278">非阴天</text>
     <path id="red" fill="#b62937"/>
-    <path id="right-top" fill="#fff"/>
+    <path id="evidence-right" fill="#edf4f0"/>
     <path id="all-border" class="boundary" fill="none"/>
-    <path id="top-border" class="boundary" fill="none" hidden/>
-    <path id="lower-border" class="boundary excluded" hidden/>
+    <path id="excluded-border" class="boundary excluded" hidden/>
     <rect id="reference-left" class="reference" style="opacity:0"/>
     <rect id="reference-right" class="reference" style="opacity:0"/>
     <path id="column-guides" class="guide" hidden/>
@@ -106,16 +144,41 @@
         <div class="equation"><span id="no-rain-fraction"></span> <strong id="no-rain-likelihood"></strong></div>
       </div>
     </div>
+    <div class="strength" aria-live="polite">
+      <p><strong id="strength-value"></strong> <span id="strength-direction"></span></p>
+      <p id="strength-ratio"></p>
+      <div id="strength-scale" aria-hidden="true">
+        <div class="scale"><i id="strength-marker"></i></div>
+        <div class="scale-labels">
+          <span><b>≤ −10 dB</b>支持不下雨</span><span><b>0 dB</b>中性</span><span><b>≥ +10 dB</b>支持下雨</span>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="calculation" id="evidence-calculation" hidden>
-    <small id="cloud-total"></small>
-    <div class="equation"><span id="cloud-fraction"></span> <strong id="cloud-posterior"></strong></div>
+    <div class="odds-flow" aria-label="几率更新">
+      <div><small>先验几率</small><b id="prior-odds"></b></div>
+      <div class="odds-arrow"><span id="odds-factor"></span><span aria-hidden="true">⟶</span></div>
+      <div><button type="button" class="reading-button" data-reading="odds" aria-pressed="false">后验几率</button><b id="posterior-odds"></b></div>
+    </div>
+    <small id="evidence-total"></small>
+    <div class="probability-line">
+      <button type="button" class="reading-button" data-reading="probability" aria-pressed="false">降雨概率</button>
+      <div class="equation"><span id="evidence-fraction"></span> <strong id="evidence-posterior"></strong></div>
+    </div>
+    <small id="probability-change"></small>
+    <details id="odds-details">
+      <summary>展开对数几率的更新</summary>
+      <p>后验对数几率 = 先验对数几率 + 证据强度</p>
+      <p id="log-odds-update"></p>
+      <p>证据强度取似然比的 10 × log₁₀，各值显示到一位小数。</p>
+    </details>
   </div>
   <p id="explanation" aria-live="polite"></p>
   <div class="results">
     <div class="result"><span>先验降雨概率</span><strong id="prior"></strong></div>
-    <div class="result"><span>阴天的似然比</span><strong id="lr"></strong></div>
-    <div class="result"><span>阴天后降雨概率</span><strong id="posterior"></strong></div>
+    <div class="result"><span id="lr-label">阴天的似然比</span><strong id="lr"></strong></div>
+    <div class="result"><span id="posterior-label">已知阴天时的降雨概率</span><strong id="posterior"></strong></div>
   </div>
   <div class="controls">
     <div class="control"><label for="p">下雨列宽 · P(H)</label><output id="p-value" for="p"></output><input type="range" id="p" min="12" max="88" step="1"></div>
@@ -132,14 +195,25 @@ const plot = byId("plot");
 const initial = { p: 0.26, t: 12 / 26, f: 18 / 74 };
 const values = { ...initial };
 const steps = [...document.querySelectorAll("[data-step]")];
+const evidenceButtons = [...document.querySelectorAll("[data-evidence]")];
+const readingButtons = [...document.querySelectorAll("button[data-reading]")];
 const handles = [...document.querySelectorAll("[data-drag]")];
 const frame = { x: 100, y: 68, w: 530, h: 252 };
 let step = 0;
+let evidence = "cloudy";
+let reading = "";
 let timer = null;
 let drag = null;
 
 const total = 100;
 const percent = (value) => (value * 100).toFixed(1) + "%";
+
+function decibels(value) {
+  if (!Number.isFinite(value)) return value > 0 ? "+∞ dB" : "−∞ dB";
+  const rounded = Number(value.toFixed(1));
+  const sign = rounded < 0 ? "−" : rounded > 0 ? "+" : "";
+  return sign + Math.abs(rounded).toFixed(1) + " dB";
+}
 
 function path(id, data) {
   byId(id).setAttribute("d", data);
@@ -156,7 +230,7 @@ function show(id, visible) {
 function outline(id, x, y, width, height, visible) {
   const element = byId(id);
   element.setAttribute("x", x);
-  element.setAttribute("y", y);
+  element.style.y = y + "px";
   element.setAttribute("width", width);
   element.style.height = height + "px";
   element.style.opacity = visible ? "1" : "0";
@@ -173,7 +247,13 @@ function render() {
   const noRainTotal = total - rainTotal;
   const cloudyRain = Math.round(values.t * rainTotal);
   const cloudyNoRain = Math.round(values.f * noRainTotal);
-  const cloudyTotal = cloudyRain + cloudyNoRain;
+  const nonCloudyRain = rainTotal - cloudyRain;
+  const nonCloudyNoRain = noRainTotal - cloudyNoRain;
+  const lower = step > 0 && evidence === "clear";
+  const evidenceName = lower ? "非阴天" : "阴天";
+  const observedRain = lower ? nonCloudyRain : cloudyRain;
+  const observedNoRain = lower ? nonCloudyNoRain : cloudyNoRain;
+  const observedTotal = observedRain + observedNoRain;
   const p = rainTotal / total;
   const t = cloudyRain / rainTotal;
   const f = cloudyNoRain / noRainTotal;
@@ -183,22 +263,26 @@ function render() {
   const split = x + w * p;
   const leftCut = y + h * t;
   const rightCut = y + h * f;
-  const sharedCut = Math.max(leftCut, rightCut);
   const leftMid = (x + split) / 2;
   const rightMid = (split + right) / 2;
   const focus = step === 2;
   const compare = step === 1;
 
-  path("red", `M${x} ${y}H${split}V${leftCut}H${x}Z`);
-  path("right-top", `M${split} ${y}H${right}V${rightCut}H${split}Z`);
-  path("all-border", `M${x} ${y}H${right}V${bottom}H${x}Z M${split} ${y}V${bottom} M${x} ${leftCut}H${split} M${split} ${rightCut}H${right}`);
-  path("top-border", `M${x} ${leftCut}V${y}H${right}V${rightCut}H${split} M${x} ${leftCut}H${split} M${split} ${y}V${sharedCut}`);
-  path("lower-border", `M${x} ${leftCut}V${bottom}H${right}V${rightCut} M${split} ${sharedCut}V${bottom}`);
+  const selectedTop = lower ? [leftCut, rightCut] : [y, y];
+  const selectedBottom = lower ? [bottom, bottom] : [leftCut, rightCut];
+  const grid = `M${x} ${y}H${right}V${bottom}H${x}Z M${split} ${y}V${bottom} M${x} ${leftCut}H${split} M${split} ${rightCut}H${right}`;
+
+  path("red", `M${x} ${selectedTop[0]}H${split}V${selectedBottom[0]}H${x}Z`);
+  path("evidence-right", `M${split} ${selectedTop[1]}H${right}V${selectedBottom[1]}H${split}Z`);
+  show("evidence-right", step > 0);
+  path("all-border", grid);
+  path("excluded-border", grid);
   show("all-border", !focus);
-  show("top-border", focus);
-  show("lower-border", focus);
-  outline("reference-left", x, y, split - x, focus ? leftCut - y : h, step > 0 && (!focus || t > 0));
-  outline("reference-right", split, y, right - split, focus ? rightCut - y : h, step > 0 && (!focus || f > 0));
+  show("excluded-border", focus);
+  outline("reference-left", x, focus ? selectedTop[0] : y, split - x,
+    focus ? selectedBottom[0] - selectedTop[0] : h, step > 0 && (!focus || observedRain > 0));
+  outline("reference-right", split, focus ? selectedTop[1] : y, right - split,
+    focus ? selectedBottom[1] - selectedTop[1] : h, step > 0 && (!focus || observedNoRain > 0));
   path("column-guides", `M${leftMid} ${bottom}v7L${x + w / 4} 346 M${rightMid} ${bottom}v7L${x + w * 3 / 4} 346`);
   show("column-guides", compare);
 
@@ -206,29 +290,61 @@ function render() {
   textAt("no-rain", rightMid, 54, "不下雨");
   textAt("n0", leftMid, (y + leftCut) / 2, cloudyRain);
   textAt("n1", rightMid, (y + rightCut) / 2, cloudyNoRain);
-  textAt("n2", leftMid, (leftCut + bottom) / 2, rainTotal - cloudyRain);
-  textAt("n3", rightMid, (rightCut + bottom) / 2, noRainTotal - cloudyNoRain);
-  [t, f, 1 - t, 1 - f].forEach((height, index) => show("n" + index, height >= 0.14));
-  for (const id of ["n2", "n3", "non-cloud"]) byId(id).style.fill = focus ? "#a0ada7" : (compare ? "#667a74" : "");
+  textAt("n2", leftMid, (leftCut + bottom) / 2, nonCloudyRain);
+  textAt("n3", rightMid, (rightCut + bottom) / 2, nonCloudyNoRain);
+  [t, f, 1 - t, 1 - f].forEach((height, index) => {
+    const selected = (index >= 2) === lower;
+    const label = byId("n" + index);
+    label.classList.toggle("on-red", selected && index % 2 === 0);
+    label.classList.toggle("selected-count", focus && selected);
+    label.classList.toggle("right-count", index % 2 === 1);
+    label.classList.toggle("muted", compare && !selected);
+    label.classList.toggle("excluded-count", focus && !selected);
+    show("n" + index, height >= 0.14);
+  });
+  byId("cloud-label").classList.toggle("excluded-count", focus && lower);
+  byId("non-cloud").classList.toggle("excluded-count", focus && !lower);
   handles[0].setAttribute("d", `M${split} ${y}V${bottom}`);
   handles[1].setAttribute("d", `M${x} ${leftCut}H${split}`);
   handles[2].setAttribute("d", `M${split} ${rightCut}H${right}`);
 
-  const lr = f > 0 ? (t / f).toFixed(1) : (t > 0 ? "∞" : "未定义");
-  const posterior = cloudyTotal > 0 ? percent(cloudyRain / cloudyTotal) : "未定义";
+  const likelihoodNumerator = observedRain * noRainTotal;
+  const likelihoodDenominator = observedNoRain * rainTotal;
+  const ratio = likelihoodNumerator / likelihoodDenominator;
+  const strength = 10 * Math.log10(ratio);
+  const lr = Number.isNaN(ratio) ? "未定义" : Number.isFinite(ratio) ? ratio.toFixed(1) : "∞";
+  const roundedRatio = Number.isFinite(ratio) && likelihoodNumerator * 10 % likelihoodDenominator !== 0;
+  const direction = ratio > 1 ? "支持下雨" : ratio < 1 ? "支持不下雨" : "中性";
+  const posterior = observedTotal > 0 ? percent(observedRain / observedTotal) : "未定义";
+  show("evidence-picker", step > 0);
   show("likelihood-calculation", compare);
-  show("evidence-calculation", focus && cloudyTotal > 0);
+  show("evidence-calculation", focus && observedTotal > 0);
+  show("strength-scale", observedTotal > 0);
   byId("rain-total").textContent = rainTotal;
   byId("no-rain-total").textContent = noRainTotal;
-  byId("rain-likelihood").textContent = equation("rain", cloudyRain, rainTotal);
-  byId("no-rain-likelihood").textContent = equation("no-rain", cloudyNoRain, noRainTotal);
-  if (cloudyTotal > 0) {
-    byId("cloud-total").textContent = `两块上格共 ${cloudyRain} + ${cloudyNoRain} = ${cloudyTotal} 条`;
-    byId("cloud-posterior").textContent = equation("cloud", cloudyRain, cloudyTotal);
+  byId("rain-likelihood").textContent = equation("rain", observedRain, rainTotal);
+  byId("no-rain-likelihood").textContent = equation("no-rain", observedNoRain, noRainTotal);
+  byId("strength-value").textContent = observedTotal > 0 ? `证据强度 ${decibels(strength)}` : "证据强度未定义";
+  byId("strength-direction").textContent = observedTotal > 0 ? direction : "";
+  byId("strength-ratio").textContent = observedTotal > 0 ? `似然比 ${roundedRatio ? "约 " : ""}${lr} 倍` : "";
+  if (observedTotal > 0) {
+    byId("strength-marker").style.left = Math.max(0, Math.min(100, 50 + 5 * strength)) + "%";
+    byId("prior-odds").textContent = `${rainTotal} : ${noRainTotal}`;
+    byId("odds-factor").textContent = `× ${roundedRatio ? "约 " : ""}${lr}`;
+    byId("posterior-odds").textContent = `${observedRain} : ${observedNoRain}`;
+    byId("evidence-total").textContent = `两块${lower ? "下" : "上"}格共 ${observedRain} + ${observedNoRain} = ${observedTotal} 条`;
+    byId("evidence-posterior").textContent = equation("evidence", observedRain, observedTotal);
+    byId("probability-change").textContent = `${percent(p)} → ${posterior}`;
+    byId("log-odds-update").textContent = `先验 ${decibels(10 * Math.log10(rainTotal / noRainTotal))} · 证据 ${decibels(strength)} · 后验 ${decibels(10 * Math.log10(observedRain / observedNoRain))}`;
   }
   byId("prior").textContent = percent(p);
+  byId("lr-label").textContent = `${evidenceName}的似然比`;
   byId("lr").textContent = lr;
+  byId("posterior-label").textContent = `已知${evidenceName}时的降雨概率`;
   byId("posterior").textContent = posterior;
+  plot.dataset.reading = focus ? reading : "";
+  evidenceButtons.forEach((button) => button.setAttribute("aria-pressed", button.dataset.evidence === evidence));
+  readingButtons.forEach((button) => button.setAttribute("aria-pressed", button.dataset.reading === reading));
   byId("t").max = rainTotal;
   byId("f").max = noRainTotal;
   const controls = { p: [rainTotal, p], t: [cloudyRain, t], f: [cloudyNoRain, f] };
@@ -240,9 +356,9 @@ function render() {
   }
   const messages = [
     "先看整张图。左列宽度是降雨先验，左上红块表示今天阴天且明天下雨。",
-    "每列各自当作 100%，看上格占多少。",
-    cloudyTotal > 0 ? "左上红块仍是分子，两块上格合起来是分母。"
-      : "两列都没有阴天记录，因此无法计算已知今天阴天时的降雨概率。"
+    `每列各自当作 100%，看${lower ? "下" : "上"}格占多少。`,
+    observedTotal > 0 ? "后验几率比较选中的左右两格。降雨概率看左格占两格合计多少。"
+      : `两列都没有「${evidenceName}」记录，无法用这条证据更新。`
   ];
   byId("explanation").textContent = messages[step];
   steps.forEach((button) => button.setAttribute("aria-pressed", Number(button.dataset.step) === step));
@@ -256,12 +372,28 @@ function stop() {
 function setStep(value) {
   plot.classList.toggle("switching", step > 0 && value > 0 && step !== value);
   step = value;
+  reading = "";
   render();
 }
 steps.forEach((button) => button.addEventListener("click", () => {
   stop();
   setStep(Number(button.dataset.step));
 }));
+for (const button of evidenceButtons) {
+  button.addEventListener("click", () => {
+    stop();
+    plot.classList.toggle("switching", step === 2);
+    evidence = button.dataset.evidence;
+    reading = "";
+    render();
+  });
+}
+for (const button of readingButtons) {
+  button.addEventListener("click", () => {
+    reading = reading === button.dataset.reading ? "" : button.dataset.reading;
+    render();
+  });
+}
 byId("play").addEventListener("click", () => {
   if (timer !== null) { stop(); return; }
   setStep(0);
@@ -274,6 +406,8 @@ byId("play").addEventListener("click", () => {
 byId("reset").addEventListener("click", () => {
   stop();
   Object.assign(values, initial);
+  evidence = "cloudy";
+  byId("odds-details").open = false;
   setStep(0);
 });
 for (const key of Object.keys(values)) {
