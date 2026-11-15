@@ -55,6 +55,7 @@
   .ribbon { cursor: pointer; }
   .ribbon:hover { filter: brightness(.92); }
   .dimmed { opacity: .16; }
+  .ribbon-group.metric-base { opacity: .48; }
   .ribbon-edge { fill: none; stroke: #384759; stroke-width: .8; vector-effect: non-scaling-stroke; pointer-events: none; }
   .matrix { width: 100%; border-collapse: separate; border-spacing: 3px; table-layout: fixed; text-align: center; }
   .matrix caption { text-align: left; font-weight: 700; }
@@ -66,6 +67,14 @@
   .matrix td button[data-filter="FN"]:not([aria-pressed="true"]) { background: #fff2eb; }
   .matrix td button[data-filter="FP"]:not([aria-pressed="true"]),
   .matrix td button[data-filter="TN"]:not([aria-pressed="true"]) { background: #edf5fc; }
+  .matrix button.metric-hit { border: 2px solid var(--accent); }
+  .matrix button.metric-base { border: 2px dashed #627c90; }
+  .metrics { margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; margin-top: 8px; }
+  .metric-grid button { display: grid; gap: 2px; justify-items: start; text-align: left; }
+  .metric-grid strong { font-size: 19px; font-variant-numeric: tabular-nums; }
+  .metric-grid small { font-size: 12px; }
+  .metric-detail { min-height: 2.9em; }
   .charts { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
   .chart-card figure { margin: 8px 0 0; }
   .chart-card svg { max-width: 470px; margin: auto; }
@@ -77,6 +86,14 @@
   .curve { fill: none; stroke: #245a7c; stroke-width: 2.4; stroke-linejoin: round; }
   .point { fill: #c34d27; stroke: white; stroke-width: 2; }
   .metric-readout { min-height: 2.7em; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .experiments { margin-top: 14px; display: grid; gap: 14px; }
+  .experiment-table { width: 100%; border-collapse: collapse; margin-top: 8px; text-align: right; font-size: clamp(12px, 2vw, 15px); font-variant-numeric: tabular-nums; }
+  .experiment-table :is(th, td) { padding: 7px 4px; border-bottom: 1px solid var(--line); }
+  .experiment-table tr > :first-child { text-align: left; }
+  .experiment-table thead { color: var(--muted); }
+  .experiment-table tr[data-current="true"] { background: #edf5fc; }
+  .mix { display: flex; height: 9px; min-width: 45px; max-width: 210px; margin-left: auto; border-radius: 4px; overflow: hidden; background: var(--negative-light); }
+  .mix span { background: var(--positive); }
   @media (max-width: 660px) {
     .flow-body, .charts { grid-template-columns: 1fr; }
     .flow-body { gap: 4px; }
@@ -194,6 +211,11 @@
         <p class="note" id="flow-reading" aria-live="polite"></p>
       </div>
     </div>
+    <div class="metrics" aria-labelledby="metrics-heading">
+      <h2 id="metrics-heading">当前阈值的统计指标</h2>
+      <div class="metric-grid" id="metric-grid"></div>
+      <p class="note metric-detail" id="metric-detail">点一个指标，查看它在矩阵里用到的分子和分母。</p>
+    </div>
   </section>
 
   <div class="charts">
@@ -212,6 +234,33 @@
         <figcaption id="roc-reading" class="metric-readout"></figcaption>
       </figure>
       <p class="note">对角虚线表示无区分能力的基准。</p>
+    </section>
+  </div>
+  <div class="experiments">
+    <section class="card" aria-labelledby="threshold-compare-heading">
+      <h2 id="threshold-compare-heading">同一批样本，三个阈值</h2>
+      <p class="note">比较阈值收紧时，少报了多少负类，也漏掉了多少正类。</p>
+      <table class="experiment-table" aria-labelledby="threshold-compare-heading">
+        <thead><tr><th scope="col">阈值</th><th scope="col">误报 FP</th><th scope="col">漏报 FN</th><th scope="col">Recall</th><th scope="col">Precision</th></tr></thead>
+        <tbody id="threshold-comparison"></tbody>
+      </table>
+    </section>
+    <section class="card" aria-labelledby="prevalence-heading">
+      <h2 id="prevalence-heading">正类越来越稀少</h2>
+      <p class="note">每组 1,000 个样本。固定 Recall 90%、FPR 10%，只改变实际正类占比。三组的 ROC 工作点相同，PR 工作点的精确率不同。</p>
+      <table class="experiment-table" aria-labelledby="prevalence-heading">
+        <thead><tr><th scope="col">正类占比</th><th scope="col">TP</th><th scope="col">FP</th><th scope="col">Precision</th><th scope="col">预测正类构成</th></tr></thead>
+        <tbody id="prevalence-comparison"></tbody>
+      </table>
+      <p class="note">色条只看预测正类。橙色是命中 TP，浅蓝色是误报 FP。</p>
+    </section>
+    <section class="card" aria-labelledby="accuracy-heading">
+      <h2 id="accuracy-heading">同样的准确率，不同的误报与漏报</h2>
+      <p class="note">两组演示结果都用 40 个事实正类、60 个事实负类。A 和 B 都判对 80 个，A 漏得少，B 误报少。</p>
+      <table class="experiment-table" aria-labelledby="accuracy-heading">
+        <thead><tr><th scope="col">结果</th><th scope="col">Accuracy</th><th scope="col">漏报 / 误报</th><th scope="col">Recall</th><th scope="col">Precision</th></tr></thead>
+        <tbody id="accuracy-comparison"></tbody>
+      </table>
     </section>
   </div>
 </main>
@@ -239,6 +288,21 @@
     TN: '事实是负类，预测也是负类。'
   };
   const names = { TP: '命中', FP: '误报', FN: '漏报', TN: '正确排除' };
+  const metrics = {
+    recall: { label: 'Recall', name: '召回率 / TPR', numerator: ['TP'], rest: ['FN'], formula: 'TP / (TP + FN)', reference: '从事实正类出发，问有多少被预测为正' },
+    precision: { label: 'Precision', name: '精确率', numerator: ['TP'], rest: ['FP'], formula: 'TP / (TP + FP)', reference: '从预测正类出发，问有多少确实为正' },
+    falsePositiveRate: { label: 'FPR', name: '误报率', numerator: ['FP'], rest: ['TN'], formula: 'FP / (FP + TN)', reference: '在事实负类里看误报' },
+    falseNegativeRate: { label: 'FNR', name: '漏报率', numerator: ['FN'], rest: ['TP'], formula: 'FN / (TP + FN)', reference: '在事实正类里看漏报' },
+    specificity: { label: 'Specificity', name: '特异度 / TNR', numerator: ['TN'], rest: ['FP'], formula: 'TN / (TN + FP)', reference: '在事实负类里看正确排除' },
+    accuracy: { label: 'Accuracy', name: '准确率', numerator: ['TP', 'TN'], rest: ['FP', 'FN'], formula: '(TP + TN) / 全部', reference: '在全部样本里看判对了多少' },
+    f1: { label: 'F1', name: 'F1 分数', numerator: ['TP', 'TP'], rest: ['FP', 'FN'], formula: '2×TP / (2×TP + FP + FN)', reference: '精确率与召回率的调和平均，式中 TP 计两次' }
+  };
+  const metricGrid = document.querySelector('#metric-grid');
+  metricGrid.innerHTML = Object.entries(metrics).map(([key, metric]) =>
+    `<button type="button" data-metric="${key}" aria-pressed="false">
+      <span>${metric.label}</span><strong></strong><small>${metric.name}</small>
+    </button>`).join('');
+  const metricButtons = [...metricGrid.querySelectorAll('button')];
   let selected = 'all';
   let current;
 
@@ -247,12 +311,28 @@
     const FP = negativeScores.filter(score => score >= cutoff).length;
     const FN = positiveScores.length - TP;
     const TN = negativeScores.length - FP;
-    return {
-      TP, FP, FN, TN,
-      recall: TP / positiveScores.length,
-      precision: TP + FP === 0 ? null : TP / (TP + FP),
-      falsePositiveRate: FP / negativeScores.length
-    };
+    return { TP, FP, FN, TN };
+  }
+
+  function fraction(counts, metric) {
+    const sum = keys => keys.reduce((total, key) => total + counts[key], 0);
+    const numerator = sum(metric.numerator);
+    const denominator = numerator + sum(metric.rest);
+    return [numerator, denominator];
+  }
+
+  function metricValue(counts, key) {
+    const [numerator, denominator] = fraction(counts, metrics[key]);
+    return denominator ? numerator / denominator : null;
+  }
+
+  function emphasis(key) {
+    const metric = metrics[selected];
+    if (metric) {
+      if (metric.numerator.includes(key)) return 'metric-hit';
+      return metric.rest.includes(key) ? 'metric-base' : 'dimmed';
+    }
+    return selected !== 'all' && selected !== key ? 'dimmed' : '';
   }
 
   const measurements = Array.from({ length: 101 }, (_, cutoff) => measure(cutoff));
@@ -272,8 +352,7 @@
     const edge = crosses
       ? `<path class="ribbon-edge" d="M${left},${start} ${topCurve} M${left},${start + height} ${bottomCurve}"/>`
       : '';
-    const dim = selected !== 'all' && selected !== key ? 'dimmed' : '';
-    return `<g class="${dim}"><path class="ribbon" data-filter="${key}" d="${path}" fill="url(#${key})">
+    return `<g class="ribbon-group ${emphasis(key)}"><path class="ribbon" data-filter="${key}" d="${path}" fill="url(#${key})">
       <title>${key} · ${names[key]} · ${count} 个</title></path>${edge}</g>`;
   }
 
@@ -289,24 +368,52 @@
       FN: drawRibbon('FN', FN, positiveJoin, negativeJoin - FN * pixelsPerSample, true),
       FP: drawRibbon('FP', FP, negativeJoin - FP * pixelsPerSample, positiveJoin, true)
     };
-    const order = ['TP', 'TN', 'FN', 'FP'].filter(key => key !== selected);
-    if (selected !== 'all') order.push(selected);
+    const order = ['TP', 'TN', 'FN', 'FP'];
+    const isForeground = key => Number(key === selected || emphasis(key) === 'metric-hit');
+    order.sort((a, b) => isForeground(a) - isForeground(b));
     ribbons.innerHTML = order.map(key => ribbonParts[key]).join('');
     document.querySelector('#predicted-positive').textContent = `＋ ${predictedPositive}`;
     document.querySelector('#predicted-negative').textContent = `− ${predictedNegative}`;
     document.querySelector('#flow-description').textContent =
       `事实正类 40 个、负类 60 个。预测正类 ${predictedPositive} 个、负类 ${predictedNegative} 个。TP ${TP}，FP ${FP}，FN ${FN}，TN ${TN}。`;
-    filters.forEach(button => button.setAttribute('aria-pressed', button.dataset.filter === selected));
+    filters.forEach(button => {
+      const { filter } = button.dataset;
+      button.setAttribute('aria-pressed', filter === selected);
+      if (filter in names && button.closest('.matrix')) {
+        button.classList.remove('metric-hit', 'metric-base', 'dimmed');
+        if (metrics[selected]) button.classList.add(emphasis(filter));
+      }
+    });
     document.querySelector('#flow-reading').textContent = selected === 'all'
       ? explanations.all
-      : `${selected} · ${current[selected]} 个。 ${explanations[selected]}`;
+      : metrics[selected]?.reference ?? `${selected} · ${current[selected]} 个。 ${explanations[selected]}`;
+    renderMetrics();
   }
 
   const chart = { left: 52, top: 12, width: 297, height: 189 };
   const x = value => chart.left + value * chart.width;
   const y = value => chart.top + (1 - value) * chart.height;
-  const percent = value => `${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(value * 100)}%`;
+  const numberFormat = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 });
+  const percent = value => `${numberFormat.format(value * 100)}%`;
+  const showRate = value => value === null ? '—' : percent(value);
   const ticks = [0, .25, .5, .75, 1];
+
+  function renderMetrics() {
+    metricButtons.forEach(button => {
+      const key = button.dataset.metric;
+      button.setAttribute('aria-pressed', key === selected);
+      button.querySelector('strong').textContent = showRate(metricValue(current, key));
+    });
+    const detail = document.querySelector('#metric-detail');
+    const metric = metrics[selected];
+    if (!metric) {
+      detail.textContent = '点一个指标，查看它在矩阵里用到的分子和分母。';
+      return;
+    }
+    const [numerator, denominator] = fraction(current, metric);
+    const result = denominator ? percent(numerator / denominator) : '未定义（分母为 0）';
+    detail.textContent = `${metric.formula} = ${numerator}/${denominator} = ${result}。实线框标分子，虚线框标分母中其余的格子。`;
+  }
 
   function line(x1, y1, x2, y2, style) {
     return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="${style}"/>`;
@@ -336,9 +443,35 @@
   }
 
   const pr = buildChart('pr', '召回率 Recall', '精确率 Precision',
-    values => [values.recall, values.precision], [.4, .4]);
+    values => [metricValue(values, 'recall'), metricValue(values, 'precision')], [.4, .4]);
   const roc = buildChart('roc', '假正率 FPR', '召回率 Recall',
-    values => [values.falsePositiveRate, values.recall], [0, 1]);
+    values => [metricValue(values, 'falsePositiveRate'), metricValue(values, 'recall')], [0, 1]);
+
+  const thresholdComparison = document.querySelector('#threshold-comparison');
+  thresholdComparison.innerHTML = presets.map(button => {
+    const value = Number(button.dataset.threshold);
+    const counts = measurements[value];
+    return `<tr data-cutoff="${value}"><th scope="row">${(value / 100).toFixed(2)}</th>
+      <td>${counts.FP}</td><td>${counts.FN}</td><td>${showRate(metricValue(counts, 'recall'))}</td>
+      <td>${showRate(metricValue(counts, 'precision'))}</td></tr>`;
+  }).join('');
+
+  document.querySelector('#prevalence-comparison').innerHTML = [500, 100, 10].map(positive => {
+    const TP = positive * 9 / 10;
+    const FP = (1000 - positive) / 10;
+    const precision = metricValue({ TP, FP }, 'precision');
+    return `<tr><th scope="row">${percent(positive / 1000)}</th>
+      <td>${TP}</td><td>${FP}</td><td>${TP}/${TP + FP} = ${percent(precision)}</td>
+      <td><div class="mix" aria-hidden="true"><span style="width:${precision * 100}%"></span></div></td></tr>`;
+  }).join('');
+
+  document.querySelector('#accuracy-comparison').innerHTML = [
+    { label: 'A', TP: 36, FP: 16, FN: 4, TN: 44 },
+    { label: 'B', TP: 24, FP: 4, FN: 16, TN: 56 }
+  ].map(counts => `<tr><th scope="row">${counts.label}</th>
+    <td>${showRate(metricValue(counts, 'accuracy'))}</td><td>${counts.FN} / ${counts.FP}</td>
+    <td>${showRate(metricValue(counts, 'recall'))}</td>
+    <td>${showRate(metricValue(counts, 'precision'))}</td></tr>`).join('');
 
   function movePoint(series, cutoff) {
     const [horizontal, vertical] = series.coordinates(current);
@@ -357,12 +490,16 @@
     thresholdValue.value = cutoff;
     threshold.setAttribute('aria-valuetext', cutoff);
     presets.forEach(button => button.setAttribute('aria-pressed', Number(button.dataset.threshold) === value));
+    for (const row of thresholdComparison.rows) row.dataset.current = Number(row.dataset.cutoff) === value;
     for (const key of Object.keys(names)) document.getElementById(`count-${key}`).textContent = current[key];
     renderFlow();
     movePoint(pr, cutoff);
     movePoint(roc, cutoff);
 
-    const { TP, FP, recall, precision, falsePositiveRate } = current;
+    const { TP, FP } = current;
+    const recall = metricValue(current, 'recall');
+    const precision = metricValue(current, 'precision');
+    const falsePositiveRate = metricValue(current, 'falsePositiveRate');
     const recallText = `召回率 ${TP}/${positiveScores.length} = ${percent(recall)}`;
     const precisionText = precision === null
       ? '预测正类为 0，精确率未定义'
@@ -383,6 +520,7 @@
     updateThreshold();
   }));
   filters.forEach(button => button.addEventListener('click', () => chooseFilter(button.dataset.filter)));
+  metricButtons.forEach(button => button.addEventListener('click', () => chooseFilter(button.dataset.metric)));
   ribbons.addEventListener('click', event => {
     const ribbon = event.target.closest('[data-filter]');
     if (ribbon) chooseFilter(ribbon.dataset.filter);
