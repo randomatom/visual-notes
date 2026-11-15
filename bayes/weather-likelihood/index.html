@@ -26,6 +26,18 @@
   #n0 { fill:#fff; }
   .boundary { stroke:#657574; stroke-width:1.4; vector-effect:non-scaling-stroke; }
   .excluded { fill:none; stroke:#b7c2bd; stroke-dasharray:5 5; }
+  .reference { fill:none; stroke:#47776c; stroke-width:1.6; vector-effect:non-scaling-stroke; pointer-events:none; }
+  .switching .reference { transition:height .32s ease, opacity .2s ease; }
+  .guide { fill:none; stroke:#90a99f; stroke-width:1; vector-effect:non-scaling-stroke; }
+  .calculation { width:min(100%,730px); margin:auto; text-align:center; }
+  .by-column { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin-left:15.15%; margin-right:4.55%; }
+  .calculation small { display:block; color:var(--muted); font-size:clamp(11px,2.8vw,15px); }
+  .equation { font-size:clamp(12px,3.4vw,19px); font-variant-numeric:tabular-nums; }
+  .equation strong { color:var(--teal); white-space:nowrap; }
+  #evidence-calculation strong { color:var(--red); }
+  @media(prefers-reduced-motion:reduce) {
+    .switching .reference { transition:none; }
+  }
   [data-drag] { stroke:transparent; stroke-width:19; vector-effect:non-scaling-stroke; touch-action:none; }
   [data-drag="p"] { cursor:ew-resize; }
   [data-drag="t"], [data-drag="f"] { cursor:ns-resize; }
@@ -72,6 +84,9 @@
     <path id="all-border" class="boundary" fill="none"/>
     <path id="top-border" class="boundary" fill="none" hidden/>
     <path id="lower-border" class="boundary excluded" hidden/>
+    <rect id="reference-left" class="reference" style="opacity:0"/>
+    <rect id="reference-right" class="reference" style="opacity:0"/>
+    <path id="column-guides" class="guide" hidden/>
     <text id="n0" class="counts" text-anchor="middle" dominant-baseline="central"></text>
     <text id="n1" class="counts" text-anchor="middle" dominant-baseline="central"></text>
     <text id="n2" class="counts" text-anchor="middle" dominant-baseline="central"></text>
@@ -80,6 +95,22 @@
     <path data-drag="t" fill="none"/>
     <path data-drag="f" fill="none"/>
   </svg>
+  <div class="calculation" id="likelihood-calculation" hidden>
+    <div class="by-column">
+      <div>
+        <small>下雨列共 <span id="rain-total"></span> 条</small>
+        <div class="equation"><span id="rain-fraction"></span> <strong id="rain-likelihood"></strong></div>
+      </div>
+      <div>
+        <small>不下雨列共 <span id="no-rain-total"></span> 条</small>
+        <div class="equation"><span id="no-rain-fraction"></span> <strong id="no-rain-likelihood"></strong></div>
+      </div>
+    </div>
+  </div>
+  <div class="calculation" id="evidence-calculation" hidden>
+    <small id="cloud-total"></small>
+    <div class="equation"><span id="cloud-fraction"></span> <strong id="cloud-posterior"></strong></div>
+  </div>
   <p id="explanation" aria-live="polite"></p>
   <div class="results">
     <div class="result"><span>先验降雨概率</span><strong id="prior"></strong></div>
@@ -110,6 +141,12 @@ let drag = null;
 const fmt = (value, digits = 1) => Number(value.toFixed(digits)).toString();
 const percent = (value) => fmt(value * 100) + "%";
 
+const count = (value) => {
+  const perHundred = value * 100;
+  return perHundred > 0 && perHundred < 0.001 ? perHundred.toPrecision(2) : fmt(perHundred, 3);
+};
+const nearlyEqual = (a, b) => Math.abs(a - b) < 1e-10;
+
 function path(id, data) {
   byId(id).setAttribute("d", data);
 }
@@ -122,6 +159,26 @@ function textAt(id, x, y, value) {
 function show(id, visible) {
   byId(id).toggleAttribute("hidden", !visible);
 }
+function outline(id, x, y, width, height, visible) {
+  const element = byId(id);
+  element.setAttribute("x", x);
+  element.setAttribute("y", y);
+  element.setAttribute("width", width);
+  element.style.height = height + "px";
+  element.style.opacity = visible ? "1" : "0";
+}
+
+function equation(id, numerator, denominator, proportion) {
+  const top = count(numerator);
+  const total = count(denominator);
+  const result = percent(proportion);
+  const exact = nearlyEqual(Number(top), numerator * 100) &&
+    nearlyEqual(Number(total), denominator * 100) &&
+    nearlyEqual(Number.parseFloat(result), proportion * 100);
+  byId(id + "-fraction").textContent = `${top} ÷ ${total}`;
+  return `${exact ? "=" : "≈"} ${result}`;
+}
+
 function render() {
   const { p, t, f } = values;
   const { x, y, w, h } = frame;
@@ -134,6 +191,7 @@ function render() {
   const leftMid = (x + split) / 2;
   const rightMid = (split + right) / 2;
   const focus = step === 2;
+  const compare = step === 1;
   const a = p * t;
   const b = (1 - p) * f;
   const e = a + b;
@@ -146,21 +204,36 @@ function render() {
   show("all-border", !focus);
   show("top-border", focus);
   show("lower-border", focus);
+  outline("reference-left", x, y, split - x, focus ? leftCut - y : h, step > 0 && (!focus || t > 0));
+  outline("reference-right", split, y, right - split, focus ? rightCut - y : h, step > 0 && (!focus || f > 0));
+  path("column-guides", `M${leftMid} ${bottom}v7L${x + w / 4} 346 M${rightMid} ${bottom}v7L${x + w * 3 / 4} 346`);
+  show("column-guides", compare);
 
   textAt("rain", leftMid, 54, "下雨");
   textAt("no-rain", rightMid, 54, "不下雨");
-  textAt("n0", leftMid, (y + leftCut) / 2, step === 1 ? percent(t) : fmt(a * 100));
-  textAt("n1", rightMid, (y + rightCut) / 2, step === 1 ? percent(f) : fmt(b * 100));
-  textAt("n2", leftMid, (leftCut + bottom) / 2, fmt((p - a) * 100));
-  textAt("n3", rightMid, (rightCut + bottom) / 2, fmt((1 - p - b) * 100));
-  [t, f, 1 - t, 1 - f].forEach((height, index) => show("n" + index, height >= 0.14 && (step !== 1 || index < 2)));
-  for (const id of ["n2", "n3", "non-cloud"]) byId(id).style.fill = focus ? "#a0ada7" : "";
+  textAt("n0", leftMid, (y + leftCut) / 2, count(a));
+  textAt("n1", rightMid, (y + rightCut) / 2, count(b));
+  textAt("n2", leftMid, (leftCut + bottom) / 2, count(p - a));
+  textAt("n3", rightMid, (rightCut + bottom) / 2, count(1 - p - b));
+  [t, f, 1 - t, 1 - f].forEach((height, index) => show("n" + index, height >= 0.14));
+  for (const id of ["n2", "n3", "non-cloud"]) byId(id).style.fill = focus ? "#a0ada7" : (compare ? "#667a74" : "");
   handles[0].setAttribute("d", `M${split} ${y}V${bottom}`);
   handles[1].setAttribute("d", `M${x} ${leftCut}H${split}`);
   handles[2].setAttribute("d", `M${split} ${rightCut}H${right}`);
 
   const lr = f > 0 ? fmt(t / f, 2) : (t > 0 ? "∞" : "未定义");
   const posterior = e > 0 ? percent(a / e) : "未定义";
+  show("likelihood-calculation", compare);
+  show("evidence-calculation", focus && e > 0);
+  byId("rain-total").textContent = count(p);
+  byId("no-rain-total").textContent = count(1 - p);
+  byId("rain-likelihood").textContent = equation("rain", a, p, t);
+  byId("no-rain-likelihood").textContent = equation("no-rain", b, 1 - p, f);
+  if (e > 0) {
+    const sign = nearlyEqual(Number(count(a)) + Number(count(b)), Number(count(e))) ? "=" : "≈";
+    byId("cloud-total").textContent = `两块上格共 ${count(a)} + ${count(b)} ${sign} ${count(e)} 条`;
+    byId("cloud-posterior").textContent = equation("cloud", a, e, a / e);
+  }
   byId("prior").textContent = percent(p);
   byId("lr").textContent = lr;
   byId("posterior").textContent = posterior;
@@ -170,8 +243,8 @@ function render() {
   }
   const messages = [
     "先看整张图。左列宽度是降雨先验，左上红块表示今天阴天且明天下雨。",
-    `固定“今天阴天”，先看左列上方占 ${percent(t)}，再看右列上方占 ${percent(f)}。两者的比值是 ${lr}。`,
-    e > 0 ? `只看两块上方区域。红块 ${fmt(a * 100)} ÷ 阴天总数 ${fmt(e * 100)}，得到后验 ${posterior}。`
+    "每列各自当作 100%，看上格占多少。",
+    e > 0 ? "左上红块仍是分子，两块上格合起来是分母。"
       : "两列都没有阴天记录，因此无法计算已知今天阴天时的降雨概率。"
   ];
   byId("explanation").textContent = messages[step];
@@ -184,6 +257,7 @@ function stop() {
   byId("play").textContent = "播放三步";
 }
 function setStep(value) {
+  plot.classList.toggle("switching", step > 0 && value > 0 && step !== value);
   step = value;
   render();
 }
@@ -198,7 +272,7 @@ byId("play").addEventListener("click", () => {
   timer = setInterval(() => {
     setStep(step + 1);
     if (step === 2) stop();
-  }, 1750);
+  }, 2600);
 });
 byId("reset").addEventListener("click", () => {
   stop();
@@ -208,6 +282,7 @@ byId("reset").addEventListener("click", () => {
 for (const key of Object.keys(values)) {
   byId(key).addEventListener("input", (event) => {
     stop();
+    plot.classList.remove("switching");
     values[key] = Number(event.target.value) / 100;
     render();
   });
@@ -216,6 +291,7 @@ for (const handle of handles) {
   handle.addEventListener("pointerdown", (event) => {
     if (drag) return;
     stop();
+    plot.classList.remove("switching");
     drag = { key: handle.dataset.drag, pointer: event.pointerId };
     handle.setPointerCapture(event.pointerId);
   });
