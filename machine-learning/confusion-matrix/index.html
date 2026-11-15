@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="拖动分类阈值，观察 100 个样本如何形成混淆矩阵，并在 PR 与 ROC 曲线上找到当前工作点。">
 <title>混淆矩阵与分类阈值 · 可视化笔记</title>
 <link rel="icon" type="image/svg+xml" href="../../assets/circle-square.svg">
@@ -21,12 +21,19 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: #f3f6f8; color: var(--ink); font: 16px/1.55 "Instrument Sans", system-ui, sans-serif; }
-  main { max-width: 1040px; margin: auto; padding: clamp(16px, 4vw, 42px); }
+  main {
+    --page-padding: clamp(16px, 4vw, 42px);
+    max-width: 1040px;
+    margin: auto;
+    padding: var(--page-padding);
+    padding-inline: max(var(--page-padding), env(safe-area-inset-left)) max(var(--page-padding), env(safe-area-inset-right));
+  }
   a { color: var(--accent); }
   h1 { margin: 12px 0 4px; font-size: clamp(28px, 5vw, 44px); line-height: 1.18; }
   h2 { margin: 0; font-size: clamp(18px, 3vw, 22px); }
   .lede, .note { color: var(--muted); }
-  .lede { margin: 8px 0 20px; }
+  .lede { margin: 8px 0 4px; }
+  #threshold-rule { margin-bottom: 16px; }
   .note { margin: 4px 0; font-size: 14px; }
   .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: clamp(12px, 3vw, 24px); }
   .controls { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 8px 24px; }
@@ -75,9 +82,28 @@
     .flow-body { gap: 4px; }
     .matrix { max-width: 370px; margin: auto; }
   }
-  @media (max-width: 420px) {
-    .controls { grid-template-columns: 1fr; }
-    .controls .buttons { margin-top: 4px; }
+  @media (max-width: 660px), (max-width: 960px) and (pointer: coarse) {
+    main { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+    .controls {
+      position: fixed;
+      z-index: 2;
+      inset: auto 0 0;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0 8px;
+      padding: 6px max(12px, env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+      border-width: 1px 0 0;
+      border-radius: 0;
+      box-shadow: 0 -3px 14px #202b3a14;
+    }
+    .threshold-input { display: contents; }
+    .slider-label { grid-area: 1 / 1; justify-content: flex-start; }
+    .slider-label label { font-size: 14px; white-space: nowrap; }
+    .slider-label output { font-size: 19px; }
+    .controls .buttons { grid-area: 1 / 2; flex-wrap: nowrap; }
+    .controls button { min-height: 36px; padding-inline: 7px; }
+    .controls input[type="range"] { grid-area: 2 / 1 / 3 / -1; height: 34px; margin: 0; }
+    .range-ticks { display: none; }
   }
 </style>
 </head>
@@ -86,9 +112,10 @@
   <a href="../../">← 可视化笔记</a>
   <h1>混淆矩阵与分类阈值</h1>
   <p class="lede">拖动阈值，观察同一批 100 个样本如何分流，以及 PR 和 ROC 曲线上的工作点如何移动。</p>
+  <p class="note" id="threshold-rule">分数 ≥ 阈值判为正类。样本分数固定，均为演示数据。</p>
 
   <section class="card controls" aria-labelledby="threshold-label">
-    <div>
+    <div class="threshold-input">
       <div class="slider-label">
         <label id="threshold-label" for="threshold"><strong>分类阈值</strong></label>
         <output id="threshold-value" for="threshold">0.50</output>
@@ -101,7 +128,6 @@
       <button type="button" data-threshold="50" aria-pressed="true">0.50</button>
       <button type="button" data-threshold="75">0.75</button>
     </div>
-    <p class="note" id="threshold-rule">分数 ≥ 阈值判为正类。样本分数固定，均为演示数据。</p>
   </section>
 
   <section class="card flow-card" aria-labelledby="flow-heading">
