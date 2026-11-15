@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="拖动分类阈值，观察 100 个样本如何形成混淆矩阵，并在 PR 与 ROC 曲线上找到当前工作点。">
+<title>混淆矩阵与分类阈值 · 可视化笔记</title>
+<link rel="icon" type="image/svg+xml" href="../../assets/circle-square.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="../../assets/apple-touch-icon.png">
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #202b3a;
+    --muted: #546276;
+    --line: #dce4ea;
+    --accent: #214b65;
+    --positive: #a84628;
+    --positive-light: #ffc6ab;
+    --negative: #285a83;
+    --negative-light: #bedcf3;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f3f6f8; color: var(--ink); font: 16px/1.55 "Instrument Sans", system-ui, sans-serif; }
+  main { max-width: 1040px; margin: auto; padding: clamp(16px, 4vw, 42px); }
+  a { color: var(--accent); }
+  h1 { margin: 12px 0 4px; font-size: clamp(28px, 5vw, 44px); line-height: 1.18; }
+  h2 { margin: 0; font-size: clamp(18px, 3vw, 22px); }
+  .lede, .note { color: var(--muted); }
+  .lede { margin: 8px 0 20px; }
+  .note { margin: 4px 0; font-size: 14px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: clamp(12px, 3vw, 24px); }
+  .controls { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 8px 24px; }
+  .slider-label { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  output { color: var(--accent); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; height: 26px; margin: 3px 0 0; accent-color: var(--accent); cursor: pointer; }
+  .range-ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+  button { border: 1px solid #aebdca; border-radius: 7px; background: #fff; color: var(--accent); padding: 5px 9px; font: inherit; font-size: 14px; cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  :focus-visible { outline: 3px solid #4582ae; outline-offset: 3px; }
+  .flow-card, .charts { margin-top: 14px; }
+  .flow-body { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(210px, 1fr); align-items: center; gap: 16px 28px; }
+  .flow-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  svg { display: block; width: 100%; height: auto; font-family: inherit; }
+  .flow-svg { max-width: 620px; margin: 6px auto 0; }
+  .flow-label { font-size: 22px; font-weight: 700; }
+  .track { fill: #edf2f6; }
+  .ribbon { cursor: pointer; }
+  .ribbon:hover { filter: brightness(.92); }
+  .dimmed { opacity: .16; }
+  .ribbon-edge { fill: none; stroke: #384759; stroke-width: .8; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .matrix { width: 100%; border-collapse: separate; border-spacing: 3px; table-layout: fixed; text-align: center; }
+  .matrix caption { text-align: left; font-weight: 700; }
+  .matrix th { font-size: 13px; color: var(--muted); }
+  .matrix td button { display: grid; width: 100%; min-height: 57px; justify-items: center; padding: 3px; }
+  .matrix td strong { font-size: 19px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .matrix td span { font-size: 12px; }
+  .matrix td button[data-filter="TP"]:not([aria-pressed="true"]),
+  .matrix td button[data-filter="FN"]:not([aria-pressed="true"]) { background: #fff2eb; }
+  .matrix td button[data-filter="FP"]:not([aria-pressed="true"]),
+  .matrix td button[data-filter="TN"]:not([aria-pressed="true"]) { background: #edf5fc; }
+  .charts { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+  .chart-card figure { margin: 8px 0 0; }
+  .chart-card svg { max-width: 470px; margin: auto; }
+  .grid { stroke: #dce4eb; }
+  .axis { stroke: #8292a3; }
+  .baseline { stroke: #78899a; stroke-dasharray: 4 4; }
+  .chart-tick { font-size: 11px; fill: var(--muted); }
+  .chart-label { font-size: 12px; fill: var(--ink); }
+  .curve { fill: none; stroke: #245a7c; stroke-width: 2.4; stroke-linejoin: round; }
+  .point { fill: #c34d27; stroke: white; stroke-width: 2; }
+  .metric-readout { min-height: 2.7em; font-size: 14px; font-variant-numeric: tabular-nums; }
+  @media (max-width: 660px) {
+    .flow-body, .charts { grid-template-columns: 1fr; }
+    .flow-body { gap: 4px; }
+    .matrix { max-width: 370px; margin: auto; }
+  }
+  @media (max-width: 420px) {
+    .controls { grid-template-columns: 1fr; }
+    .controls .buttons { margin-top: 4px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a href="../../">← 可视化笔记</a>
+  <h1>混淆矩阵与分类阈值</h1>
+  <p class="lede">拖动阈值，观察同一批 100 个样本如何分流，以及 PR 和 ROC 曲线上的工作点如何移动。</p>
+
+  <section class="card controls" aria-labelledby="threshold-label">
+    <div>
+      <div class="slider-label">
+        <label id="threshold-label" for="threshold"><strong>分类阈值</strong></label>
+        <output id="threshold-value" for="threshold">0.50</output>
+      </div>
+      <input id="threshold" type="range" min="0" max="100" step="1" value="50" aria-describedby="threshold-rule">
+      <div class="range-ticks" aria-hidden="true"><span>0.00</span><span>1.00</span></div>
+    </div>
+    <div class="buttons" role="group" aria-label="预设阈值">
+      <button type="button" data-threshold="25">0.25</button>
+      <button type="button" data-threshold="50" aria-pressed="true">0.50</button>
+      <button type="button" data-threshold="75">0.75</button>
+    </div>
+    <p class="note" id="threshold-rule">分数 ≥ 阈值判为正类。样本分数固定，均为演示数据。</p>
+  </section>
+
+  <section class="card flow-card" aria-labelledby="flow-heading">
+    <div class="flow-top">
+      <h2 id="flow-heading">双车道分流</h2>
+      <div class="buttons" role="group" aria-label="突出显示样本组">
+        <button type="button" data-filter="all" aria-pressed="true">全部</button>
+        <button type="button" data-filter="TP" aria-pressed="false">TP</button>
+        <button type="button" data-filter="FP" aria-pressed="false">FP</button>
+        <button type="button" data-filter="FN" aria-pressed="false">FN</button>
+        <button type="button" data-filter="TN" aria-pressed="false">TN</button>
+      </div>
+    </div>
+    <div class="flow-body">
+      <div class="flow-figure">
+        <svg class="flow-svg" viewBox="0 0 560 405" role="img" aria-labelledby="flow-title flow-description">
+          <title id="flow-title">事实分类到预测分类的样本流向</title>
+          <desc id="flow-description"></desc>
+          <defs>
+            <linearGradient id="TP" gradientUnits="userSpaceOnUse" x1="60" x2="500" y1="0" y2="0">
+              <stop offset=".12" stop-color="#a84628"/><stop offset=".88" stop-color="#ffc6ab"/>
+            </linearGradient>
+            <linearGradient id="FN" gradientUnits="userSpaceOnUse" x1="60" x2="500" y1="0" y2="0">
+              <stop offset=".12" stop-color="#a84628"/><stop offset=".88" stop-color="#bedcf3"/>
+            </linearGradient>
+            <linearGradient id="FP" gradientUnits="userSpaceOnUse" x1="60" x2="500" y1="0" y2="0">
+              <stop offset=".12" stop-color="#285a83"/><stop offset=".88" stop-color="#ffc6ab"/>
+            </linearGradient>
+            <linearGradient id="TN" gradientUnits="userSpaceOnUse" x1="60" x2="500" y1="0" y2="0">
+              <stop offset=".12" stop-color="#285a83"/><stop offset=".88" stop-color="#bedcf3"/>
+            </linearGradient>
+          </defs>
+          <rect class="track" x="22" y="55" width="516" height="142" rx="7"/>
+          <rect class="track" x="22" y="210" width="516" height="142" rx="7"/>
+          <g id="ribbons" aria-hidden="true"></g>
+          <g class="flow-label" aria-hidden="true">
+            <text x="22" y="27" fill="#202b3a">事实</text>
+            <text x="538" y="27" fill="#202b3a" text-anchor="end">预测</text>
+            <text x="22" y="48" fill="#963c23">＋ 40</text>
+            <text id="predicted-positive" x="538" y="48" fill="#963c23" text-anchor="end"></text>
+            <text x="22" y="378" fill="#285a83">− 60</text>
+            <text id="predicted-negative" x="538" y="378" fill="#285a83" text-anchor="end"></text>
+          </g>
+        </svg>
+        <p class="note">上方是正类，下方是负类。流带厚度与样本数成正比。</p>
+      </div>
+      <div>
+        <table class="matrix">
+          <caption>混淆矩阵</caption>
+          <thead><tr><td></td><th scope="col">预测 ＋</th><th scope="col">预测 −</th></tr></thead>
+          <tbody>
+            <tr>
+              <th scope="row">事实 ＋</th>
+              <td><button type="button" data-filter="TP" aria-pressed="false"><strong id="count-TP"></strong><span>TP · 命中</span></button></td>
+              <td><button type="button" data-filter="FN" aria-pressed="false"><strong id="count-FN"></strong><span>FN · 漏报</span></button></td>
+            </tr>
+            <tr>
+              <th scope="row">事实 −</th>
+              <td><button type="button" data-filter="FP" aria-pressed="false"><strong id="count-FP"></strong><span>FP · 误报</span></button></td>
+              <td><button type="button" data-filter="TN" aria-pressed="false"><strong id="count-TN"></strong><span>TN · 正确排除</span></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="note" id="flow-reading" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="charts">
+    <section class="card chart-card" aria-labelledby="pr-heading">
+      <h2 id="pr-heading">PR · 查准与查全</h2>
+      <figure>
+        <svg id="pr" viewBox="0 0 370 250" role="img" aria-labelledby="pr-heading" aria-describedby="pr-reading"></svg>
+        <figcaption id="pr-reading" class="metric-readout"></figcaption>
+      </figure>
+      <p class="note">虚线表示正类占比 40%。</p>
+    </section>
+    <section class="card chart-card" aria-labelledby="roc-heading">
+      <h2 id="roc-heading">ROC · 误报与召回</h2>
+      <figure>
+        <svg id="roc" viewBox="0 0 370 250" role="img" aria-labelledby="roc-heading" aria-describedby="roc-reading"></svg>
+        <figcaption id="roc-reading" class="metric-readout"></figcaption>
+      </figure>
+      <p class="note">对角虚线表示无区分能力的基准。</p>
+    </section>
+  </div>
+</main>
+<script>
+  const positiveScores = [
+    19, 25, 30, 33, 37, 42, 46, 48, 50, 52, 53, 54, 56, 58, 59, 60, 61, 63, 65, 66,
+    68, 69, 70, 72, 73, 74, 75, 77, 79, 80, 81, 83, 84, 86, 88, 89, 91, 93, 95, 97
+  ];
+  const negativeScores = [
+    3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+    24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,
+    44, 45, 46, 47, 48, 48, 49, 49, 50, 51, 54, 55, 57, 60, 62, 64, 67, 71, 76, 82
+  ];
+
+  const threshold = document.querySelector('#threshold');
+  const thresholdValue = document.querySelector('#threshold-value');
+  const presets = [...document.querySelectorAll('[data-threshold]')];
+  const filters = [...document.querySelectorAll('button[data-filter]')];
+  const ribbons = document.querySelector('#ribbons');
+  const explanations = {
+    all: '同一批 100 个样本从左到右，按预测结果重新分组。',
+    TP: '事实是正类，预测也是正类。',
+    FP: '事实是负类，预测却是正类。',
+    FN: '事实是正类，预测却是负类。',
+    TN: '事实是负类，预测也是负类。'
+  };
+  const names = { TP: '命中', FP: '误报', FN: '漏报', TN: '正确排除' };
+  let selected = 'all';
+  let current;
+
+  function measure(cutoff) {
+    const TP = positiveScores.filter(score => score >= cutoff).length;
+    const FP = negativeScores.filter(score => score >= cutoff).length;
+    const FN = positiveScores.length - TP;
+    const TN = negativeScores.length - FP;
+    return {
+      TP, FP, FN, TN,
+      recall: TP / positiveScores.length,
+      precision: TP + FP === 0 ? null : TP / (TP + FP),
+      falsePositiveRate: FP / negativeScores.length
+    };
+  }
+
+  const measurements = Array.from({ length: 101 }, (_, cutoff) => measure(cutoff));
+  const junctions = { left: 86, right: 474, leftControl: 260, rightControl: 300 };
+  const topEdge = 55;
+  const bottomEdge = 352;
+  const pixelsPerSample = 1.24;
+
+  function drawRibbon(key, count, start, end, crosses) {
+    if (count === 0) return '';
+    const { left, right, leftControl, rightControl } = junctions;
+    const height = count * pixelsPerSample;
+    const topCurve = `C${leftControl},${start} ${rightControl},${end} ${right},${end}`;
+    const bottomCurve = `C${leftControl},${start + height} ${rightControl},${end + height} ${right},${end + height}`;
+    const path = `M22,${start} H${left} ${topCurve} H538 v${height}
+      H${right} C${rightControl},${end + height} ${leftControl},${start + height} ${left},${start + height} H22 Z`;
+    const edge = crosses
+      ? `<path class="ribbon-edge" d="M${left},${start} ${topCurve} M${left},${start + height} ${bottomCurve}"/>`
+      : '';
+    const dim = selected !== 'all' && selected !== key ? 'dimmed' : '';
+    return `<g class="${dim}"><path class="ribbon" data-filter="${key}" d="${path}" fill="url(#${key})">
+      <title>${key} · ${names[key]} · ${count} 个</title></path>${edge}</g>`;
+  }
+
+  function renderFlow() {
+    const { TP, FP, FN, TN } = current;
+    const predictedPositive = TP + FP;
+    const predictedNegative = FN + TN;
+    const positiveJoin = topEdge + TP * pixelsPerSample;
+    const negativeJoin = bottomEdge - TN * pixelsPerSample;
+    const ribbonParts = {
+      TP: drawRibbon('TP', TP, topEdge, topEdge, false),
+      TN: drawRibbon('TN', TN, negativeJoin, negativeJoin, false),
+      FN: drawRibbon('FN', FN, positiveJoin, negativeJoin - FN * pixelsPerSample, true),
+      FP: drawRibbon('FP', FP, negativeJoin - FP * pixelsPerSample, positiveJoin, true)
+    };
+    const order = ['TP', 'TN', 'FN', 'FP'].filter(key => key !== selected);
+    if (selected !== 'all') order.push(selected);
+    ribbons.innerHTML = order.map(key => ribbonParts[key]).join('');
+    document.querySelector('#predicted-positive').textContent = `＋ ${predictedPositive}`;
+    document.querySelector('#predicted-negative').textContent = `− ${predictedNegative}`;
+    document.querySelector('#flow-description').textContent =
+      `事实正类 40 个、负类 60 个。预测正类 ${predictedPositive} 个、负类 ${predictedNegative} 个。TP ${TP}，FP ${FP}，FN ${FN}，TN ${TN}。`;
+    filters.forEach(button => button.setAttribute('aria-pressed', button.dataset.filter === selected));
+    document.querySelector('#flow-reading').textContent = selected === 'all'
+      ? explanations.all
+      : `${selected} · ${current[selected]} 个。 ${explanations[selected]}`;
+  }
+
+  const chart = { left: 52, top: 12, width: 297, height: 189 };
+  const x = value => chart.left + value * chart.width;
+  const y = value => chart.top + (1 - value) * chart.height;
+  const percent = value => `${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(value * 100)}%`;
+  const ticks = [0, .25, .5, .75, 1];
+
+  function line(x1, y1, x2, y2, style) {
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="${style}"/>`;
+  }
+
+  function buildChart(id, xLabel, yLabel, coordinates, baseline) {
+    const svg = document.getElementById(id);
+    const grid = ticks.map(value => `
+      ${line(x(0), y(value), x(1), y(value), 'grid')}
+      ${line(x(value), y(0), x(value), y(1), 'grid')}
+      <text x="${x(value)}" y="218" text-anchor="middle" class="chart-tick">${percent(value)}</text>
+      <text x="44" y="${y(value) + 4}" text-anchor="end" class="chart-tick">${percent(value)}</text>
+    `).join('');
+    const points = measurements.slice().reverse().map(coordinates)
+      .filter(([, vertical]) => vertical !== null)
+      .map(([horizontal, vertical]) => `${x(horizontal)},${y(vertical)}`);
+    const [start, end] = baseline;
+    svg.innerHTML = `${grid}
+      ${line(x(0), y(0), x(1), y(0), 'axis')}
+      ${line(x(0), y(0), x(0), y(1), 'axis')}
+      ${line(x(0), y(start), x(1), y(end), 'baseline')}
+      <polyline class="curve" points="${points.join(' ')}"/>
+      <circle class="point" r="5.5"><title></title></circle>
+      <text x="${x(.5)}" y="239" text-anchor="middle" class="chart-label">${xLabel}</text>
+      <text transform="translate(11 ${y(.5)}) rotate(-90)" text-anchor="middle" class="chart-label">${yLabel}</text>`;
+    return { point: svg.querySelector('.point'), coordinates };
+  }
+
+  const pr = buildChart('pr', '召回率 Recall', '精确率 Precision',
+    values => [values.recall, values.precision], [.4, .4]);
+  const roc = buildChart('roc', '假正率 FPR', '召回率 Recall',
+    values => [values.falsePositiveRate, values.recall], [0, 1]);
+
+  function movePoint(series, cutoff) {
+    const [horizontal, vertical] = series.coordinates(current);
+    series.point.style.display = vertical === null ? 'none' : '';
+    if (vertical === null) return;
+    series.point.setAttribute('cx', x(horizontal));
+    series.point.setAttribute('cy', y(vertical));
+    series.point.querySelector('title').textContent =
+      `阈值 ${cutoff} · (${percent(horizontal)}, ${percent(vertical)})`;
+  }
+
+  function updateThreshold() {
+    const value = Number(threshold.value);
+    const cutoff = (value / 100).toFixed(2);
+    current = measurements[value];
+    thresholdValue.value = cutoff;
+    threshold.setAttribute('aria-valuetext', cutoff);
+    presets.forEach(button => button.setAttribute('aria-pressed', Number(button.dataset.threshold) === value));
+    for (const key of Object.keys(names)) document.getElementById(`count-${key}`).textContent = current[key];
+    renderFlow();
+    movePoint(pr, cutoff);
+    movePoint(roc, cutoff);
+
+    const { TP, FP, recall, precision, falsePositiveRate } = current;
+    const recallText = `召回率 ${TP}/${positiveScores.length} = ${percent(recall)}`;
+    const precisionText = precision === null
+      ? '预测正类为 0，精确率未定义'
+      : `精确率 ${TP}/${TP + FP} = ${percent(precision)}`;
+    document.getElementById('pr-reading').textContent = `${recallText} · ${precisionText}`;
+    document.getElementById('roc-reading').textContent =
+      `假正率 ${FP}/${negativeScores.length} = ${percent(falsePositiveRate)} · ${recallText}`;
+  }
+
+  function chooseFilter(key) {
+    selected = selected === key ? 'all' : key;
+    renderFlow();
+  }
+
+  threshold.addEventListener('input', updateThreshold);
+  presets.forEach(button => button.addEventListener('click', () => {
+    threshold.value = button.dataset.threshold;
+    updateThreshold();
+  }));
+  filters.forEach(button => button.addEventListener('click', () => chooseFilter(button.dataset.filter)));
+  ribbons.addEventListener('click', event => {
+    const ribbon = event.target.closest('[data-filter]');
+    if (ribbon) chooseFilter(ribbon.dataset.filter);
+  });
+  updateThreshold();
+</script>
+</body>
+</html>
