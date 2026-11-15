@@ -104,6 +104,7 @@
     .flow-body, .charts { grid-template-columns: 1fr; }
     .flow-body { gap: 4px; }
     .matrix { max-width: 370px; margin: auto; }
+    .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 660px), (max-width: 960px) and (pointer: coarse) {
     main { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
@@ -278,13 +279,13 @@
 </main>
 <script>
   const positiveScores = [
-    19, 25, 30, 33, 37, 42, 46, 48, 50, 52, 53, 54, 56, 58, 59, 60, 61, 63, 65, 66,
+    19, 25, 30, 33, 37, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 63, 65, 66,
     68, 69, 70, 72, 73, 74, 75, 77, 79, 80, 81, 83, 84, 86, 88, 89, 91, 93, 95, 97
   ];
   const negativeScores = [
     3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
     24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,
-    44, 45, 46, 47, 48, 48, 49, 49, 50, 51, 54, 55, 57, 60, 62, 64, 67, 71, 76, 82
+    44, 45, 46, 47, 48, 50, 51, 52, 53, 54, 55, 56, 57, 60, 62, 64, 67, 71, 76, 82
   ];
 
   const threshold = document.querySelector('#threshold');
@@ -301,11 +302,11 @@
   };
   const names = { TP: '命中', FP: '误报', FN: '漏报', TN: '正确排除' };
   const metrics = {
-    recall: { label: 'Recall', name: '召回率 / TPR', numerator: ['TP'], rest: ['FN'], formula: 'TP / (TP + FN)', reference: '从事实正类出发，问有多少被预测为正' },
+    recall: { label: 'Recall', name: '敏感性 / TPR', numerator: ['TP'], rest: ['FN'], formula: 'TP / (TP + FN)', reference: '在事实正类里看正确检出，敏感性也叫召回率' },
+    specificity: { label: 'Specificity', name: '特异性 / TNR', numerator: ['TN'], rest: ['FP'], formula: 'TN / (TN + FP)', reference: '在事实负类里看正确排除' },
     precision: { label: 'Precision', name: '精确率', numerator: ['TP'], rest: ['FP'], formula: 'TP / (TP + FP)', reference: '从预测正类出发，问有多少确实为正' },
     falsePositiveRate: { label: 'FPR', name: '误报率', numerator: ['FP'], rest: ['TN'], formula: 'FP / (FP + TN)', reference: '在事实负类里看误报' },
     falseNegativeRate: { label: 'FNR', name: '漏报率', numerator: ['FN'], rest: ['TP'], formula: 'FN / (TP + FN)', reference: '在事实正类里看漏报' },
-    specificity: { label: 'Specificity', name: '特异度 / TNR', numerator: ['TN'], rest: ['FP'], formula: 'TN / (TN + FP)', reference: '在事实负类里看正确排除' },
     accuracy: { label: 'Accuracy', name: '准确率', numerator: ['TP', 'TN'], rest: ['FP', 'FN'], formula: '(TP + TN) / 全部', reference: '在全部样本里看判对了多少' },
     f1: { label: 'F1', name: 'F1 分数', numerator: ['TP', 'TP'], rest: ['FP', 'FN'], formula: '2×TP / (2×TP + FP + FN)', reference: '精确率与召回率的调和平均，式中 TP 计两次' }
   };
