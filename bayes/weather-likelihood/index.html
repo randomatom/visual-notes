@@ -122,7 +122,7 @@
     <div class="control"><label for="t">下雨列内阴天比例 · P(E｜H)</label><output id="t-value" for="t"></output><input type="range" id="t" min="0" max="100" step="0.1"></div>
     <div class="control"><label for="f">不下雨列内阴天比例 · P(E｜非 H)</label><output id="f-value" for="f"></output><input type="range" id="f" min="0" max="100" step="0.1"></div>
   </div>
-  <p class="foot">默认使用 100 条教学记录。调整参数后，格中数字显示每 100 条的期望数。可直接拖动边界，也可用滑块和方向键。</p>
+  <p class="foot">默认使用 100 条教学记录。调整参数后，格中显示每 100 条的期望数，四舍五入到个位。可直接拖动边界，也可用滑块和方向键。</p>
 </section>
 </main>
 <script>
@@ -211,10 +211,10 @@ function render() {
 
   textAt("rain", leftMid, 54, "下雨");
   textAt("no-rain", rightMid, 54, "不下雨");
-  textAt("n0", leftMid, (y + leftCut) / 2, count(a));
-  textAt("n1", rightMid, (y + rightCut) / 2, count(b));
-  textAt("n2", leftMid, (leftCut + bottom) / 2, count(p - a));
-  textAt("n3", rightMid, (rightCut + bottom) / 2, count(1 - p - b));
+  textAt("n0", leftMid, (y + leftCut) / 2, fmt(a * 100, 0));
+  textAt("n1", rightMid, (y + rightCut) / 2, fmt(b * 100, 0));
+  textAt("n2", leftMid, (leftCut + bottom) / 2, fmt((p - a) * 100, 0));
+  textAt("n3", rightMid, (rightCut + bottom) / 2, fmt((1 - p - b) * 100, 0));
   [t, f, 1 - t, 1 - f].forEach((height, index) => show("n" + index, height >= 0.14));
   for (const id of ["n2", "n3", "non-cloud"]) byId(id).style.fill = focus ? "#a0ada7" : (compare ? "#667a74" : "");
   handles[0].setAttribute("d", `M${split} ${y}V${bottom}`);
