@@ -57,6 +57,11 @@
   .dimmed { opacity: .16; }
   .ribbon-group.dimmed { opacity: .07; }
   .ribbon-group.metric-base { opacity: .48; }
+  .ribbon-group[data-highlighted="true"] .ribbon {
+    stroke: var(--accent);
+    stroke-width: 1.2;
+    vector-effect: non-scaling-stroke;
+  }
   .ribbon-edge { fill: none; stroke: #384759; stroke-width: .8; vector-effect: non-scaling-stroke; pointer-events: none; }
   .matrix { width: 100%; border-collapse: separate; border-spacing: 3px; table-layout: fixed; text-align: center; }
   .matrix caption { text-align: left; font-weight: 700; }
@@ -176,6 +181,12 @@
             </linearGradient>
             <linearGradient id="TN" gradientUnits="userSpaceOnUse" x1="60" x2="500" y1="0" y2="0">
               <stop offset=".12" stop-color="#285a83"/><stop offset=".88" stop-color="#bedcf3"/>
+            </linearGradient>
+            <linearGradient id="FN-highlight" gradientUnits="userSpaceOnUse" x1="60" x2="500" y1="0" y2="0">
+              <stop offset=".12" stop-color="#a84628"/><stop offset=".88" stop-color="#76acd7"/>
+            </linearGradient>
+            <linearGradient id="TN-highlight" gradientUnits="userSpaceOnUse" x1="60" x2="500" y1="0" y2="0">
+              <stop offset=".12" stop-color="#285a83"/><stop offset=".88" stop-color="#76acd7"/>
             </linearGradient>
           </defs>
           <rect class="track" x="22" y="55" width="516" height="142" rx="7"/>
@@ -336,6 +347,10 @@
     return selected !== 'all' && selected !== key ? 'dimmed' : '';
   }
 
+  function isHighlighted(key) {
+    return key === selected || emphasis(key) === 'metric-hit';
+  }
+
   const measurements = Array.from({ length: 101 }, (_, cutoff) => measure(cutoff));
   const junctions = { left: 86, right: 474, leftControl: 260, rightControl: 300 };
   const topEdge = 55;
@@ -350,10 +365,13 @@
     const bottomCurve = `C${leftControl},${start + height} ${rightControl},${end + height} ${right},${end + height}`;
     const path = `M22,${start} H${left} ${topCurve} H538 v${height}
       H${right} C${rightControl},${end + height} ${leftControl},${start + height} ${left},${start + height} H22 Z`;
-    const edge = crosses
+    const highlighted = isHighlighted(key);
+    const gradient = highlighted && (key === 'FN' || key === 'TN') ? `${key}-highlight` : key;
+    const edge = crosses && !highlighted
       ? `<path class="ribbon-edge" d="M${left},${start} ${topCurve} M${left},${start + height} ${bottomCurve}"/>`
       : '';
-    return `<g class="ribbon-group ${emphasis(key)}"><path class="ribbon" data-filter="${key}" d="${path}" fill="url(#${key})">
+    return `<g class="ribbon-group ${emphasis(key)}" data-highlighted="${highlighted}">
+      <path class="ribbon" data-filter="${key}" d="${path}" fill="url(#${gradient})">
       <title>${key} · ${names[key]} · ${count} 个</title></path>${edge}</g>`;
   }
 
@@ -370,8 +388,7 @@
       FP: drawRibbon('FP', FP, negativeJoin - FP * pixelsPerSample, positiveJoin, true)
     };
     const order = ['TP', 'TN', 'FN', 'FP'];
-    const isForeground = key => Number(key === selected || emphasis(key) === 'metric-hit');
-    order.sort((a, b) => isForeground(a) - isForeground(b));
+    order.sort((a, b) => Number(isHighlighted(a)) - Number(isHighlighted(b)));
     ribbons.innerHTML = order.map(key => ribbonParts[key]).join('');
     document.querySelector('#predicted-positive').textContent = `＋ ${predictedPositive}`;
     document.querySelector('#predicted-negative').textContent = `− ${predictedNegative}`;
