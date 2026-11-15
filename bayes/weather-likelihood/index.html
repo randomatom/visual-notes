@@ -118,11 +118,11 @@
     <div class="result"><span>阴天后降雨概率</span><strong id="posterior"></strong></div>
   </div>
   <div class="controls">
-    <div class="control"><label for="p">下雨列宽 · P(H)</label><output id="p-value" for="p"></output><input type="range" id="p" min="12" max="88" step="0.1"></div>
-    <div class="control"><label for="t">下雨列内阴天比例 · P(E｜H)</label><output id="t-value" for="t"></output><input type="range" id="t" min="0" max="100" step="0.1"></div>
-    <div class="control"><label for="f">不下雨列内阴天比例 · P(E｜非 H)</label><output id="f-value" for="f"></output><input type="range" id="f" min="0" max="100" step="0.1"></div>
+    <div class="control"><label for="p">下雨列宽 · P(H)</label><output id="p-value" for="p"></output><input type="range" id="p" min="12" max="88" step="1"></div>
+    <div class="control"><label for="t">下雨列内阴天比例 · P(E｜H)</label><output id="t-value" for="t"></output><input type="range" id="t" min="0" max="26" step="1"></div>
+    <div class="control"><label for="f">不下雨列内阴天比例 · P(E｜非 H)</label><output id="f-value" for="f"></output><input type="range" id="f" min="0" max="74" step="1"></div>
   </div>
-  <p class="foot">默认使用 100 条教学记录。调整参数后，格中显示每 100 条的期望数，四舍五入到个位。可直接拖动边界，也可用滑块和方向键。</p>
+  <p class="foot">图中固定为 100 条教学记录。拖动边界或使用滑块，按整条调整。</p>
 </section>
 </main>
 <script>
@@ -138,14 +138,8 @@ let step = 0;
 let timer = null;
 let drag = null;
 
-const fmt = (value, digits = 1) => Number(value.toFixed(digits)).toString();
-const percent = (value) => fmt(value * 100) + "%";
-
-const count = (value) => {
-  const perHundred = value * 100;
-  return perHundred > 0 && perHundred < 0.001 ? perHundred.toPrecision(2) : fmt(perHundred, 3);
-};
-const nearlyEqual = (a, b) => Math.abs(a - b) < 1e-10;
+const total = 100;
+const percent = (value) => (value * 100).toFixed(1) + "%";
 
 function path(id, data) {
   byId(id).setAttribute("d", data);
@@ -168,19 +162,21 @@ function outline(id, x, y, width, height, visible) {
   element.style.opacity = visible ? "1" : "0";
 }
 
-function equation(id, numerator, denominator, proportion) {
-  const top = count(numerator);
-  const total = count(denominator);
-  const result = percent(proportion);
-  const exact = nearlyEqual(Number(top), numerator * 100) &&
-    nearlyEqual(Number(total), denominator * 100) &&
-    nearlyEqual(Number.parseFloat(result), proportion * 100);
-  byId(id + "-fraction").textContent = `${top} ÷ ${total}`;
-  return `${exact ? "=" : "≈"} ${result}`;
+function equation(id, numerator, denominator) {
+  const sign = numerator * 1000 % denominator === 0 ? "=" : "≈";
+  byId(id + "-fraction").textContent = `${numerator} ÷ ${denominator}`;
+  return `${sign} ${percent(numerator / denominator)}`;
 }
 
 function render() {
-  const { p, t, f } = values;
+  const rainTotal = Math.round(values.p * total);
+  const noRainTotal = total - rainTotal;
+  const cloudyRain = Math.round(values.t * rainTotal);
+  const cloudyNoRain = Math.round(values.f * noRainTotal);
+  const cloudyTotal = cloudyRain + cloudyNoRain;
+  const p = rainTotal / total;
+  const t = cloudyRain / rainTotal;
+  const f = cloudyNoRain / noRainTotal;
   const { x, y, w, h } = frame;
   const right = x + w;
   const bottom = y + h;
@@ -192,9 +188,6 @@ function render() {
   const rightMid = (split + right) / 2;
   const focus = step === 2;
   const compare = step === 1;
-  const a = p * t;
-  const b = (1 - p) * f;
-  const e = a + b;
 
   path("red", `M${x} ${y}H${split}V${leftCut}H${x}Z`);
   path("right-top", `M${split} ${y}H${right}V${rightCut}H${split}Z`);
@@ -211,40 +204,44 @@ function render() {
 
   textAt("rain", leftMid, 54, "下雨");
   textAt("no-rain", rightMid, 54, "不下雨");
-  textAt("n0", leftMid, (y + leftCut) / 2, fmt(a * 100, 0));
-  textAt("n1", rightMid, (y + rightCut) / 2, fmt(b * 100, 0));
-  textAt("n2", leftMid, (leftCut + bottom) / 2, fmt((p - a) * 100, 0));
-  textAt("n3", rightMid, (rightCut + bottom) / 2, fmt((1 - p - b) * 100, 0));
+  textAt("n0", leftMid, (y + leftCut) / 2, cloudyRain);
+  textAt("n1", rightMid, (y + rightCut) / 2, cloudyNoRain);
+  textAt("n2", leftMid, (leftCut + bottom) / 2, rainTotal - cloudyRain);
+  textAt("n3", rightMid, (rightCut + bottom) / 2, noRainTotal - cloudyNoRain);
   [t, f, 1 - t, 1 - f].forEach((height, index) => show("n" + index, height >= 0.14));
   for (const id of ["n2", "n3", "non-cloud"]) byId(id).style.fill = focus ? "#a0ada7" : (compare ? "#667a74" : "");
   handles[0].setAttribute("d", `M${split} ${y}V${bottom}`);
   handles[1].setAttribute("d", `M${x} ${leftCut}H${split}`);
   handles[2].setAttribute("d", `M${split} ${rightCut}H${right}`);
 
-  const lr = f > 0 ? fmt(t / f, 2) : (t > 0 ? "∞" : "未定义");
-  const posterior = e > 0 ? percent(a / e) : "未定义";
+  const lr = f > 0 ? (t / f).toFixed(1) : (t > 0 ? "∞" : "未定义");
+  const posterior = cloudyTotal > 0 ? percent(cloudyRain / cloudyTotal) : "未定义";
   show("likelihood-calculation", compare);
-  show("evidence-calculation", focus && e > 0);
-  byId("rain-total").textContent = count(p);
-  byId("no-rain-total").textContent = count(1 - p);
-  byId("rain-likelihood").textContent = equation("rain", a, p, t);
-  byId("no-rain-likelihood").textContent = equation("no-rain", b, 1 - p, f);
-  if (e > 0) {
-    const sign = nearlyEqual(Number(count(a)) + Number(count(b)), Number(count(e))) ? "=" : "≈";
-    byId("cloud-total").textContent = `两块上格共 ${count(a)} + ${count(b)} ${sign} ${count(e)} 条`;
-    byId("cloud-posterior").textContent = equation("cloud", a, e, a / e);
+  show("evidence-calculation", focus && cloudyTotal > 0);
+  byId("rain-total").textContent = rainTotal;
+  byId("no-rain-total").textContent = noRainTotal;
+  byId("rain-likelihood").textContent = equation("rain", cloudyRain, rainTotal);
+  byId("no-rain-likelihood").textContent = equation("no-rain", cloudyNoRain, noRainTotal);
+  if (cloudyTotal > 0) {
+    byId("cloud-total").textContent = `两块上格共 ${cloudyRain} + ${cloudyNoRain} = ${cloudyTotal} 条`;
+    byId("cloud-posterior").textContent = equation("cloud", cloudyRain, cloudyTotal);
   }
   byId("prior").textContent = percent(p);
   byId("lr").textContent = lr;
   byId("posterior").textContent = posterior;
-  for (const key of ["p", "t", "f"]) {
-    byId(key).value = values[key] * 100;
-    byId(key + "-value").textContent = percent(values[key]);
+  byId("t").max = rainTotal;
+  byId("f").max = noRainTotal;
+  const controls = { p: [rainTotal, p], t: [cloudyRain, t], f: [cloudyNoRain, f] };
+  for (const [key, [count, proportion]] of Object.entries(controls)) {
+    const label = percent(proportion);
+    byId(key).value = count;
+    byId(key).setAttribute("aria-valuetext", label);
+    byId(key + "-value").textContent = label;
   }
   const messages = [
     "先看整张图。左列宽度是降雨先验，左上红块表示今天阴天且明天下雨。",
     "每列各自当作 100%，看上格占多少。",
-    e > 0 ? "左上红块仍是分子，两块上格合起来是分母。"
+    cloudyTotal > 0 ? "左上红块仍是分子，两块上格合起来是分母。"
       : "两列都没有阴天记录，因此无法计算已知今天阴天时的降雨概率。"
   ];
   byId("explanation").textContent = messages[step];
@@ -283,7 +280,8 @@ for (const key of Object.keys(values)) {
   byId(key).addEventListener("input", (event) => {
     stop();
     plot.classList.remove("switching");
-    values[key] = Number(event.target.value) / 100;
+    const maximum = key === "p" ? total : Number(event.target.max);
+    values[key] = Number(event.target.value) / maximum;
     render();
   });
 }
