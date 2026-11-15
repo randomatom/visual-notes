@@ -41,7 +41,7 @@
   .evidence-picker button, .reading-button { padding:4px 9px; font-size:14px; }
   .strength { max-width:360px; margin:14px auto 4px; padding:10px 12px; background:#f4f7f4; border-radius:10px; }
   .strength p { margin:0; }
-  #strength-ratio { color:var(--muted); font-size:13px; }
+  .strength-caption, #strength-ratio { color:var(--muted); font-size:13px; }
   .scale { position:relative; height:22px; margin:6px 10px 0; }
   .scale::before { content:""; position:absolute; inset:10px 0 auto; border-top:2px solid #9caeaa; }
   .scale::after { content:""; position:absolute; top:6px; left:50%; height:10px; border-left:1px solid #637773; }
@@ -145,12 +145,13 @@
       </div>
     </div>
     <div class="strength" aria-live="polite">
+      <p class="strength-caption">证据强度 · 以下雨为正方向</p>
       <p><strong id="strength-value"></strong> <span id="strength-direction"></span></p>
       <p id="strength-ratio"></p>
       <div id="strength-scale" aria-hidden="true">
         <div class="scale"><i id="strength-marker"></i></div>
         <div class="scale-labels">
-          <span><b>≤ −10 dB</b>支持不下雨</span><span><b>0 dB</b>中性</span><span><b>≥ +10 dB</b>支持下雨</span>
+          <span><b>≤ −10 dB</b>降雨几率下降</span><span><b>0 dB</b>不变</span><span><b>≥ +10 dB</b>降雨几率上升</span>
         </div>
       </div>
     </div>
@@ -171,7 +172,7 @@
       <summary>展开对数几率的更新</summary>
       <p>后验对数几率 = 先验对数几率 + 证据强度</p>
       <p id="log-odds-update"></p>
-      <p>证据强度取似然比的 10 × log₁₀，各值显示到一位小数。</p>
+      <p>证据强度是降雨对数几率的变化量，等于 10 × log₁₀(似然比)。各值显示到一位小数。</p>
     </details>
   </div>
   <p id="explanation" aria-live="polite"></p>
@@ -314,7 +315,7 @@ function render() {
   const strength = 10 * Math.log10(ratio);
   const lr = Number.isNaN(ratio) ? "未定义" : Number.isFinite(ratio) ? ratio.toFixed(1) : "∞";
   const roundedRatio = Number.isFinite(ratio) && likelihoodNumerator * 10 % likelihoodDenominator !== 0;
-  const direction = ratio > 1 ? "支持下雨" : ratio < 1 ? "支持不下雨" : "中性";
+  const direction = ratio > 1 ? "降雨几率上升" : ratio < 1 ? "降雨几率下降" : "降雨几率不变";
   const posterior = observedTotal > 0 ? percent(observedRain / observedTotal) : "未定义";
   show("evidence-picker", step > 0);
   show("likelihood-calculation", compare);
@@ -324,7 +325,7 @@ function render() {
   byId("no-rain-total").textContent = noRainTotal;
   byId("rain-likelihood").textContent = equation("rain", observedRain, rainTotal);
   byId("no-rain-likelihood").textContent = equation("no-rain", observedNoRain, noRainTotal);
-  byId("strength-value").textContent = observedTotal > 0 ? `证据强度 ${decibels(strength)}` : "证据强度未定义";
+  byId("strength-value").textContent = observedTotal > 0 ? decibels(strength) : "未定义";
   byId("strength-direction").textContent = observedTotal > 0 ? direction : "";
   byId("strength-ratio").textContent = observedTotal > 0 ? `似然比 ${roundedRatio ? "约 " : ""}${lr} 倍` : "";
   if (observedTotal > 0) {
