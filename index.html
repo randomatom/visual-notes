@@ -19,12 +19,32 @@
       margin: 0 auto;
       padding: clamp(2rem, 8vw, 6rem) 1.5rem;
     }
-    h1 { font-size: clamp(2.2rem, 6vw, 3.5rem); line-height: 1.15; }
+    .page-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+    }
+    h1 { margin: 0; font-size: clamp(2.2rem, 6vw, 3.5rem); line-height: 1.15; }
+    #refresh-site {
+      min-height: 44px;
+      padding: .35rem .8rem;
+      border: 1px solid GrayText;
+      border-radius: .5rem;
+      background: Canvas;
+      color: CanvasText;
+      font: inherit;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <main>
-    <h1>可视化笔记</h1>
+    <header class="page-header">
+      <h1>可视化笔记</h1>
+      <button id="refresh-site" type="button" hidden>刷新站点</button>
+    </header>
     <p>用图解、动画和交互页面讲清数学、AI 与工程概念。</p>
     <section aria-labelledby="bayes">
       <h2 id="bayes">贝叶斯概率</h2>
@@ -40,5 +60,28 @@
       </ul>
     </section>
   </main>
+  <script>
+    const pageURL = new URL(window.location.href);
+    const refreshKey = 'refresh';
+    const refreshToken = pageURL.searchParams.get(refreshKey);
+
+    if (refreshToken) {
+      const siteRoot = new URL('./', pageURL);
+      for (const link of document.querySelectorAll('main section a[href]')) {
+        const target = new URL(link.href);
+        if (target.origin === siteRoot.origin && target.pathname.startsWith(siteRoot.pathname)) {
+          target.searchParams.set(refreshKey, refreshToken);
+          link.href = target.href;
+        }
+      }
+    }
+
+    const refreshButton = document.getElementById('refresh-site');
+    refreshButton.addEventListener('click', () => {
+      pageURL.searchParams.set(refreshKey, String(Date.now()));
+      window.location.replace(pageURL.href);
+    });
+    refreshButton.hidden = false;
+  </script>
 </body>
 </html>
