@@ -61,8 +61,13 @@
   #odds-details summary { cursor:pointer; }
   #odds-details p { margin:3px 0; }
   .guide { fill:none; stroke:#90a99f; stroke-width:1; vector-effect:non-scaling-stroke; }
+  .ruler-track, .ruler-segment { fill:none; vector-effect:non-scaling-stroke; }
+  .ruler-track { stroke:#7f928a; stroke-width:1; }
+  .ruler-segment { stroke:var(--teal); stroke-width:3.5; }
+  .ruler-full { fill:var(--muted); font-size:18px; }
+  .ruler-value { font-size:21px; font-weight:650; font-variant-numeric:tabular-nums; }
   .calculation { width:min(100%,730px); margin:auto; text-align:center; }
-  .by-column { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin-left:15.15%; margin-right:4.55%; }
+  .by-column { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin-left:15.3646%; margin-right:15.625%; }
   .calculation small { display:block; color:var(--muted); font-size:clamp(11px,2.8vw,15px); }
   .equation { font-size:clamp(12px,3.4vw,19px); font-variant-numeric:tabular-nums; }
   .equation strong { color:var(--teal); white-space:nowrap; }
@@ -85,6 +90,7 @@
   input[type=range] { display:block; width:100%; margin:9px 0 2px; accent-color:var(--teal); }
   .foot { color:var(--muted); font-size:14px; margin:12px 0 0; }
   @media(max-width:535px) {
+    .ruler-full, .ruler-value { font-size:29px; }
     .controls { grid-template-columns:1fr; gap:7px; }
     .results { gap:5px; }
     .result { padding:8px; }
@@ -111,13 +117,15 @@
     <button type="button" data-evidence="cloudy" aria-pressed="true">阴天</button>
     <button type="button" data-evidence="clear" aria-pressed="false">非阴天</button>
   </div>
-  <svg viewBox="0 0 660 350" id="plot" role="group" aria-label="矩形面积图，上方列标题是明天天气，左侧行标题是今天天气">
+  <svg viewBox="-18 0 768 350" id="plot" role="group" aria-label="矩形面积图，按明天是否下雨分列，上格是今天阴天，下格是今天非阴天">
     <text x="365" y="23" text-anchor="middle">明天天气</text>
     <text id="rain" y="54" text-anchor="middle">下雨</text>
     <text id="no-rain" y="54" text-anchor="middle">不下雨</text>
-    <text x="12" y="115">今天</text>
-    <text id="cloud-label" x="12" y="141">阴天</text>
-    <text id="non-cloud" x="12" y="278">非阴天</text>
+    <g id="row-labels">
+      <text x="12" y="115">今天</text>
+      <text id="cloud-label" x="12" y="141">阴天</text>
+      <text id="non-cloud" x="12" y="278">非阴天</text>
+    </g>
     <path id="red" fill="#b62937"/>
     <path id="evidence-right" fill="#edf4f0"/>
     <path id="all-border" class="boundary" fill="none"/>
@@ -125,6 +133,16 @@
     <rect id="reference-left" class="reference" style="opacity:0"/>
     <rect id="reference-right" class="reference" style="opacity:0"/>
     <path id="column-guides" class="guide" hidden/>
+    <g id="likelihood-rulers" aria-hidden="true" hidden>
+      <path id="ruler-left-track" class="ruler-track"/>
+      <path id="ruler-left-segment" class="ruler-segment"/>
+      <text id="ruler-left-full" class="ruler-full" text-anchor="end" dominant-baseline="central"></text>
+      <text id="ruler-left-value" class="ruler-value" text-anchor="end" dominant-baseline="central"></text>
+      <path id="ruler-right-track" class="ruler-track"/>
+      <path id="ruler-right-segment" class="ruler-segment"/>
+      <text id="ruler-right-full" class="ruler-full" text-anchor="start" dominant-baseline="central"></text>
+      <text id="ruler-right-value" class="ruler-value" text-anchor="start" dominant-baseline="central"></text>
+    </g>
     <text id="n0" class="counts" text-anchor="middle" dominant-baseline="central"></text>
     <text id="n1" class="counts" text-anchor="middle" dominant-baseline="central"></text>
     <text id="n2" class="counts" text-anchor="middle" dominant-baseline="central"></text>
@@ -236,6 +254,13 @@ function outline(id, x, y, width, height, visible) {
   element.style.opacity = visible ? "1" : "0";
 }
 
+function ruler(id, x, top, bottom, start, end, proportion, labelX) {
+  path(id + "-track", `M${x} ${top}V${bottom} M${x - 4} ${top}h8 M${x - 4} ${bottom}h8`);
+  path(id + "-segment", `M${x} ${start}V${end}`);
+  textAt(id + "-full", labelX, top - 24, "100%");
+  textAt(id + "-value", labelX, (start + end) / 2, percent(proportion));
+}
+
 function equation(id, numerator, denominator) {
   const sign = numerator * 1000 % denominator === 0 ? "=" : "≈";
   byId(id + "-fraction").textContent = `${numerator} ÷ ${denominator}`;
@@ -285,6 +310,12 @@ function render() {
     focus ? selectedBottom[1] - selectedTop[1] : h, step > 0 && (!focus || observedNoRain > 0));
   path("column-guides", `M${leftMid} ${bottom}v7L${x + w / 4} 346 M${rightMid} ${bottom}v7L${x + w * 3 / 4} 346`);
   show("column-guides", compare);
+  show("likelihood-rulers", compare);
+  show("row-labels", !compare);
+  if (compare) {
+    ruler("ruler-left", x - 9, y, bottom, selectedTop[0], selectedBottom[0], observedRain / rainTotal, x - 18);
+    ruler("ruler-right", right + 9, y, bottom, selectedTop[1], selectedBottom[1], observedNoRain / noRainTotal, right + 18);
+  }
 
   textAt("rain", leftMid, 54, "下雨");
   textAt("no-rain", rightMid, 54, "不下雨");
@@ -355,7 +386,7 @@ function render() {
   }
   const messages = [
     "先看整张图。左列宽度是降雨先验，左上红块表示今天阴天且明天下雨。",
-    `每列各自当作 100%，看${lower ? "下" : "上"}格占多少。`,
+    `每列全高是 100%，粗线标出${lower ? "下" : "上"}格所占的高度。`,
     observedTotal > 0 ? "后验几率比较选中的左右两格。降雨概率看左格占两格合计多少。"
       : `两列都没有「${evidenceName}」记录，无法用这条证据更新。`
   ];
