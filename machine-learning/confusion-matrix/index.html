@@ -239,6 +239,7 @@
         <figcaption id="pr-reading" class="metric-readout"></figcaption>
       </figure>
       <p class="note">虚线表示正类占比 40%。</p>
+      <p class="note">平均精确率 AP <strong id="pr-ap"></strong> · 用每一步的召回率增量给精确率加权。</p>
     </section>
     <section class="card chart-card" aria-labelledby="roc-heading">
       <h2 id="roc-heading">ROC · 误报与召回</h2>
@@ -247,6 +248,7 @@
         <figcaption id="roc-reading" class="metric-readout"></figcaption>
       </figure>
       <p class="note">对角虚线表示无区分能力的基准。</p>
+      <p class="note">ROC AUC <strong id="roc-auc"></strong> · 整条 ROC 曲线下的面积。</p>
     </section>
   </div>
   <div class="experiments">
@@ -303,12 +305,15 @@
   const names = { TP: '命中', FP: '误报', FN: '漏报', TN: '正确排除' };
   const metrics = {
     recall: { label: 'Recall', name: '敏感性 / TPR', numerator: ['TP'], rest: ['FN'], formula: 'TP / (TP + FN)', reference: '在事实正类里看正确检出，敏感性也叫召回率' },
-    specificity: { label: 'Specificity', name: '特异性 / TNR', numerator: ['TN'], rest: ['FP'], formula: 'TN / (TN + FP)', reference: '在事实负类里看正确排除' },
-    precision: { label: 'Precision', name: '精确率', numerator: ['TP'], rest: ['FP'], formula: 'TP / (TP + FP)', reference: '从预测正类出发，问有多少确实为正' },
+    precision: { label: 'Precision', name: '精确率 / PPV', numerator: ['TP'], rest: ['FP'], formula: 'TP / (TP + FP)', reference: '从预测正类出发，问有多少确实为正' },
     falsePositiveRate: { label: 'FPR', name: '误报率', numerator: ['FP'], rest: ['TN'], formula: 'FP / (FP + TN)', reference: '在事实负类里看误报' },
     falseNegativeRate: { label: 'FNR', name: '漏报率', numerator: ['FN'], rest: ['TP'], formula: 'FN / (TP + FN)', reference: '在事实正类里看漏报' },
+    specificity: { label: 'Specificity', name: '特异性 / TNR', numerator: ['TN'], rest: ['FP'], formula: 'TN / (TN + FP)', reference: '在事实负类里看正确排除' },
     accuracy: { label: 'Accuracy', name: '准确率', numerator: ['TP', 'TN'], rest: ['FP', 'FN'], formula: '(TP + TN) / 全部', reference: '在全部样本里看判对了多少' },
-    f1: { label: 'F1', name: 'F1 分数', numerator: ['TP', 'TP'], rest: ['FP', 'FN'], formula: '2×TP / (2×TP + FP + FN)', reference: '精确率与召回率的调和平均，式中 TP 计两次' }
+    f1: { label: 'F1', name: 'F1 分数', numerator: ['TP', 'TP'], rest: ['FP', 'FN'], formula: '2×TP / (2×TP + FP + FN)', reference: '精确率与召回率的调和平均，式中 TP 计两次' },
+    negativePredictiveValue: { label: 'NPV', name: '阴性预测值', numerator: ['TN'], rest: ['FN'], formula: 'TN / (TN + FN)', reference: '在预测负类里看有多少确实为负' },
+    falseDiscoveryRate: { label: 'FDR', name: '假发现率', numerator: ['FP'], rest: ['TP'], formula: 'FP / (TP + FP)', reference: '在预测正类里看误报，等于 1 − Precision' },
+    falseOmissionRate: { label: 'FOR', name: '假遗漏率', numerator: ['FN'], rest: ['TN'], formula: 'FN / (TN + FN)', reference: '在预测负类里看漏报，等于 1 − NPV' }
   };
   const metricGrid = document.querySelector('#metric-grid');
   metricGrid.innerHTML = Object.entries(metrics).map(([key, metric]) =>
@@ -446,25 +451,33 @@
       <text x="${x(value)}" y="218" text-anchor="middle" class="chart-tick">${percent(value)}</text>
       <text x="44" y="${y(value) + 4}" text-anchor="end" class="chart-tick">${percent(value)}</text>
     `).join('');
-    const points = measurements.slice().reverse().map(coordinates)
-      .filter(([, vertical]) => vertical !== null)
-      .map(([horizontal, vertical]) => `${x(horizontal)},${y(vertical)}`);
+    const points = measurements.slice().reverse().map(coordinates).filter(([, vertical]) => vertical !== null);
+    const plotPoints = points.map(([horizontal, vertical]) => `${x(horizontal)},${y(vertical)}`);
     const [start, end] = baseline;
     svg.innerHTML = `${grid}
       ${line(x(0), y(0), x(1), y(0), 'axis')}
       ${line(x(0), y(0), x(0), y(1), 'axis')}
       ${line(x(0), y(start), x(1), y(end), 'baseline')}
-      <polyline class="curve" points="${points.join(' ')}"/>
+      <polyline class="curve" points="${plotPoints.join(' ')}"/>
       <circle class="point" r="5.5"><title></title></circle>
       <text x="${x(.5)}" y="239" text-anchor="middle" class="chart-label">${xLabel}</text>
       <text transform="translate(11 ${y(.5)}) rotate(-90)" text-anchor="middle" class="chart-label">${yLabel}</text>`;
-    return { point: svg.querySelector('.point'), coordinates };
+    return { point: svg.querySelector('.point'), coordinates, points };
+  }
+
+  function curveArea(points, segmentHeight) {
+    return points.reduce((area, [horizontal, vertical], index) => {
+      const [previousX, previousY] = points[index - 1] ?? [0, 0];
+      return area + (horizontal - previousX) * segmentHeight(previousY, vertical);
+    }, 0);
   }
 
   const pr = buildChart('pr', '召回率 Recall', '精确率 Precision',
     values => [metricValue(values, 'recall'), metricValue(values, 'precision')], [.4, .4]);
   const roc = buildChart('roc', '假正率 FPR', '召回率 Recall',
     values => [metricValue(values, 'falsePositiveRate'), metricValue(values, 'recall')], [0, 1]);
+  document.getElementById('pr-ap').textContent = curveArea(pr.points, (_previous, precision) => precision).toFixed(3);
+  document.getElementById('roc-auc').textContent = curveArea(roc.points, (previous, current) => (previous + current) / 2).toFixed(3);
 
   const thresholdComparison = document.querySelector('#threshold-comparison');
   thresholdComparison.innerHTML = presets.map(button => {
