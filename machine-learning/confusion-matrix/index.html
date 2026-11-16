@@ -304,7 +304,7 @@
   };
   const names = { TP: '命中', FP: '误报', FN: '漏报', TN: '正确排除' };
   const metrics = {
-    recall: { label: 'Recall', name: '敏感性 / TPR', numerator: ['TP'], rest: ['FN'], formula: 'TP / (TP + FN)', reference: '在事实正类里看正确检出，敏感性也叫召回率' },
+    recall: { label: 'Recall', name: '敏感性 / TPR', numerator: ['TP'], rest: ['FN'], formula: 'TP / (TP + FN)', reference: '从左侧「事实正类」出发，看有多少到达右侧「预测正类」。' },
     precision: { label: 'Precision', name: '精确率 / PPV', numerator: ['TP'], rest: ['FP'], formula: 'TP / (TP + FP)', reference: '从预测正类出发，问有多少确实为正' },
     falsePositiveRate: { label: 'FPR', name: '误报率', numerator: ['FP'], rest: ['TN'], formula: 'FP / (FP + TN)', reference: '在事实负类里看误报' },
     falseNegativeRate: { label: 'FNR', name: '漏报率', numerator: ['FN'], rest: ['TP'], formula: 'FN / (TP + FN)', reference: '在事实正类里看漏报' },
@@ -405,9 +405,15 @@
         if (metrics[selected]) button.classList.add(emphasis(filter));
       }
     });
-    document.querySelector('#flow-reading').textContent = selected === 'all'
-      ? explanations.all
-      : metrics[selected]?.reference ?? `${selected} · ${current[selected]} 个。 ${explanations[selected]}`;
+    const reading = document.querySelector('#flow-reading');
+    if (selected === 'recall') {
+      reading.innerHTML = `<strong>Recall（召回率／敏感性）</strong><br>
+        ${metrics.recall.reference}<br><strong>口诀：从事实出发，初心不改。</strong>`;
+    } else {
+      reading.textContent = selected === 'all'
+        ? explanations.all
+        : metrics[selected]?.reference ?? `${selected} · ${current[selected]} 个。 ${explanations[selected]}`;
+    }
     renderMetrics();
   }
 
