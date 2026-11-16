@@ -407,8 +407,7 @@
     });
     const reading = document.querySelector('#flow-reading');
     if (selected === 'recall') {
-      reading.innerHTML = `<strong>Recall（召回率／敏感性）</strong><br>
-        ${metrics.recall.reference}<br><strong>口诀：从事实出发，初心不改。</strong>`;
+      reading.innerHTML = `${metrics.recall.reference}<br><strong>口诀：从事实出发，初心不改。</strong>`;
     } else {
       reading.textContent = selected === 'all'
         ? explanations.all
